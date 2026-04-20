@@ -3,5 +3,7 @@ name = "acl"
 version = "0.1.0"
 edition = "2021"
 description = "Agent Configuration Language - A configuration language similar to HCL"
+license = "MIT"
+repository = "https://github.com/A3S-Lab/ACL"
 
 [dependencies]

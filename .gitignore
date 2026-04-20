@@ -1,0 +1,13 @@
+target/
+Cargo.lock
+*.node
+*.so
+*.dylib
+*.dll
+*.exe
+node_modules/
+npm/
+artifacts/
+tarpaulin-report.html
+tarpaulin-report.json
+*.pb.*
