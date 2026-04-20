@@ -163,9 +163,15 @@ mod tests {
         assert_eq!(Value::Bool(false).to_string(), "false");
         assert_eq!(Value::Null.to_string(), "null");
         assert_eq!(Value::List(vec![]).to_string(), "[]");
-        assert_eq!(Value::List(vec![Value::Number(1.0), Value::Number(2.0)]).to_string(), "[1, 2]");
+        assert_eq!(
+            Value::List(vec![Value::Number(1.0), Value::Number(2.0)]).to_string(),
+            "[1, 2]"
+        );
         assert_eq!(Value::Object(vec![]).to_string(), "{}");
-        assert_eq!(Value::Object(vec![("a".to_string(), Value::Number(1.0))]).to_string(), "{a = 1}");
+        assert_eq!(
+            Value::Object(vec![("a".to_string(), Value::Number(1.0))]).to_string(),
+            "{a = 1}"
+        );
     }
 
     #[test]
@@ -198,8 +204,14 @@ mod tests {
 
     #[test]
     fn test_value_partial_eq() {
-        assert_eq!(Value::String("a".to_string()), Value::String("a".to_string()));
-        assert_ne!(Value::String("a".to_string()), Value::String("b".to_string()));
+        assert_eq!(
+            Value::String("a".to_string()),
+            Value::String("a".to_string())
+        );
+        assert_ne!(
+            Value::String("a".to_string()),
+            Value::String("b".to_string())
+        );
         assert_eq!(Value::Number(42.0), Value::Number(42.0));
         assert_ne!(Value::Number(42.0), Value::Number(43.0));
         assert_eq!(Value::Bool(true), Value::Bool(true));

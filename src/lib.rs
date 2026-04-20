@@ -69,8 +69,8 @@ pub fn generate_acl(doc: &Document) -> String {
 
 /// High-level builder API for creating ACL configurations
 pub mod builder {
-    use std::collections::HashMap;
     use crate::ast::{Block, Document, Value};
+    use std::collections::HashMap;
 
     /// Builder for ACL Documents
     pub struct DocumentBuilder {
@@ -103,7 +103,9 @@ pub mod builder {
 
         /// Build the document
         pub fn build(self) -> Document {
-            Document { blocks: self.blocks }
+            Document {
+                blocks: self.blocks,
+            }
         }
     }
 
@@ -207,7 +209,9 @@ mod tests {
                 name: "test".to_string(),
                 labels: vec![],
                 blocks: vec![],
-                attributes: vec![("key".to_string(), Value::String("value".to_string()))].into_iter().collect(),
+                attributes: vec![("key".to_string(), Value::String("value".to_string()))]
+                    .into_iter()
+                    .collect(),
             }],
         };
         let output = generate_acl(&doc);
@@ -231,9 +235,7 @@ mod tests {
             .attr("name", builder::string("openai"))
             .build();
 
-        let doc = builder::DocumentBuilder::new()
-            .block(block)
-            .build();
+        let doc = builder::DocumentBuilder::new().block(block).build();
 
         assert_eq!(doc.blocks.len(), 1);
         assert_eq!(doc.blocks[0].name, "provider");
@@ -255,7 +257,14 @@ mod tests {
 
         assert_eq!(block.name, "provider");
         assert_eq!(block.labels, vec!["openai"]);
-        assert_eq!(block.attributes.get("api_key").map(|v| v.to_string()).unwrap(), "sk-xxx");
+        assert_eq!(
+            block
+                .attributes
+                .get("api_key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "sk-xxx"
+        );
     }
 
     #[test]
@@ -281,7 +290,10 @@ mod tests {
         assert_eq!(builder::boolean(true), Value::Bool(true));
         assert_eq!(builder::boolean(false), Value::Bool(false));
         assert_eq!(builder::null(), Value::Null);
-        assert_eq!(builder::list(vec![Value::Number(1.0)]), Value::List(vec![Value::Number(1.0)]));
+        assert_eq!(
+            builder::list(vec![Value::Number(1.0)]),
+            Value::List(vec![Value::Number(1.0)])
+        );
     }
 
     #[test]
@@ -298,11 +310,19 @@ mod tests {
         let _ = Generator::new();
         let _ = GeneratorConfig::default();
         let _ = Lexer::new("");
-        let _ = Location { line: 1, column: 1, offset: 0 };
+        let _ = Location {
+            line: 1,
+            column: 1,
+            offset: 0,
+        };
         let _ = Span::default();
         let _ = Token::Eof;
         let _ = TokenWithSpan::new(Token::Eof, Location::default(), Location::default());
-        let _ = ParseError { message: "test".to_string(), line: 1, column: 1 };
+        let _ = ParseError {
+            message: "test".to_string(),
+            line: 1,
+            column: 1,
+        };
     }
 
     #[test]
@@ -314,7 +334,11 @@ mod tests {
 
     #[test]
     fn test_token_with_span() {
-        let loc = Location { line: 1, column: 1, offset: 0 };
+        let loc = Location {
+            line: 1,
+            column: 1,
+            offset: 0,
+        };
         let token = TokenWithSpan::new(Token::Ident("test".to_string()), loc, loc);
         assert!(matches!(token.token, Token::Ident(_)));
     }

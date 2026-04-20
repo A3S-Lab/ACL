@@ -2,9 +2,9 @@
 // ACL Parser - Parser for Agent Configuration Language
 // ============================================================================
 
-use std::collections::HashMap;
 use crate::ast::{Block, Document, Value};
 use crate::lexer::{Lexer, Token, TokenWithSpan};
+use std::collections::HashMap;
 
 /// Parse error
 #[derive(Debug, Clone)]
@@ -16,7 +16,11 @@ pub struct ParseError {
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Parse error at line {}, column {}: {}", self.line, self.column, self.message)
+        write!(
+            f,
+            "Parse error at line {}, column {}: {}",
+            self.line, self.column, self.message
+        )
     }
 }
 
@@ -89,7 +93,7 @@ impl<'a> Parser<'a> {
 
                     if is_bare_attr {
                         self.advance(); // consume the identifier
-                        // Parse as a single-attribute block (name = value)
+                                        // Parse as a single-attribute block (name = value)
                         let attr = self.parse_attribute(name.clone())?;
                         let block = Block {
                             name,
@@ -153,7 +157,12 @@ impl<'a> Parser<'a> {
                     labels.push(s.clone());
                     self.advance();
                 }
-                Token::Ident(s) if self.peek(1).map(|p| matches!(p.token, Token::LeftBrace)).unwrap_or(false) => {
+                Token::Ident(s)
+                    if self
+                        .peek(1)
+                        .map(|p| matches!(p.token, Token::LeftBrace))
+                        .unwrap_or(false) =>
+                {
                     // This is a block without labels, break
                     break;
                 }
@@ -364,13 +373,26 @@ impl<'a> Parser<'a> {
                         Token::LeftBrace => {
                             // It's a nested block, but we already consumed the name
                             let block = self.parse_nested_block(name)?;
-                            return Ok(Value::Object(vec![
-                                ("_block".to_string(), Value::Object(vec![
+                            return Ok(Value::Object(vec![(
+                                "_block".to_string(),
+                                Value::Object(vec![
                                     ("name".to_string(), Value::String(block.name)),
-                                    ("labels".to_string(), Value::List(block.labels.iter().map(|s| Value::String(s.clone())).collect())),
-                                    ("attributes".to_string(), Value::Object(block.attributes.into_iter().collect())),
-                                ]))
-                            ]));
+                                    (
+                                        "labels".to_string(),
+                                        Value::List(
+                                            block
+                                                .labels
+                                                .iter()
+                                                .map(|s| Value::String(s.clone()))
+                                                .collect(),
+                                        ),
+                                    ),
+                                    (
+                                        "attributes".to_string(),
+                                        Value::Object(block.attributes.into_iter().collect()),
+                                    ),
+                                ]),
+                            )]));
                         }
                         _ => {}
                     }
@@ -511,7 +533,10 @@ mod tests {
         let block = &doc.blocks[0];
         assert_eq!(block.name, "providers");
         assert_eq!(block.labels, vec!["openai"]);
-        assert_eq!(block.attributes.get("name").map(|v| v.to_string()).unwrap(), "openai");
+        assert_eq!(
+            block.attributes.get("name").map(|v| v.to_string()).unwrap(),
+            "openai"
+        );
     }
 
     #[test]
@@ -805,7 +830,6 @@ mod tests {
         assert_eq!(doc.blocks[0].attributes.len(), 3);
     }
 
-
     #[test]
     fn test_parse_list_of_numbers() {
         let input = r#"
@@ -1011,7 +1035,14 @@ mod tests {
             }
         "#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "value");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "value"
+        );
     }
 
     #[test]
@@ -1060,9 +1091,15 @@ mod tests {
         // Test attribute with colon separator
         let input = r#"key: "value""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "value");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "value"
+        );
     }
-
 
     #[test]
     fn test_parse_block_empty_labels() {
@@ -1089,28 +1126,56 @@ mod tests {
     fn test_parse_string_with_equals() {
         let input = r#"key = "a=b""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "a=b");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "a=b"
+        );
     }
 
     #[test]
     fn test_parse_string_with_braces() {
         let input = r#"key = "a{b}c""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "a{b}c");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "a{b}c"
+        );
     }
 
     #[test]
     fn test_parse_string_with_brackets() {
         let input = r#"key = "a[b]c""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "a[b]c");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "a[b]c"
+        );
     }
 
     #[test]
     fn test_parse_string_with_hash() {
         let input = r#"key = "a#b""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "a#b");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "a#b"
+        );
     }
 
     #[test]
@@ -1135,42 +1200,84 @@ mod tests {
         // String starting with dot needs quoting
         let input = r#"key = ".hidden""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), ".hidden");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            ".hidden"
+        );
     }
 
     #[test]
     fn test_parse_block_with_number_value() {
         let input = r#"key = 0"#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "0");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "0"
+        );
     }
 
     #[test]
     fn test_parse_bool_true_as_value() {
         let input = r#"key = true"#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "true");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "true"
+        );
     }
 
     #[test]
     fn test_parse_bool_false_as_value() {
         let input = r#"key = false"#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "false");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "false"
+        );
     }
 
     #[test]
     fn test_parse_null_as_value() {
         let input = r#"key = null"#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "null");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "null"
+        );
     }
 
     #[test]
     fn test_parse_string_with_unicode() {
         let input = r#"key = "hello 世界""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "hello 世界");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "hello 世界"
+        );
     }
 
     #[test]
@@ -1196,7 +1303,14 @@ mod tests {
         // Test string containing = character
         let input = r#"key = "a=b=c""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), "a=b=c");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            "a=b=c"
+        );
     }
 
     #[test]
@@ -1231,7 +1345,14 @@ mod tests {
         // String starting with dot needs quotes
         let input = r#"key = ".5""#;
         let doc = parse(input).unwrap();
-        assert_eq!(doc.blocks[0].attributes.get("key").map(|v| v.to_string()).unwrap(), ".5");
+        assert_eq!(
+            doc.blocks[0]
+                .attributes
+                .get("key")
+                .map(|v| v.to_string())
+                .unwrap(),
+            ".5"
+        );
     }
 
     #[test]
@@ -1334,7 +1455,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         // Parser returns error for unexpected token
-        assert!(err.message.contains("Unexpected token") || err.message.contains("Expected block name"));
+        assert!(
+            err.message.contains("Unexpected token") || err.message.contains("Expected block name")
+        );
     }
 
     #[test]

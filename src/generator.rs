@@ -2,8 +2,8 @@
 // ACL Generator - Generate ACL text from structured data
 // ============================================================================
 
-use std::collections::HashMap;
 use crate::ast::{Block, Document, Value};
+use std::collections::HashMap;
 
 /// Configuration for the generator
 #[derive(Debug, Clone)]
@@ -176,7 +176,10 @@ impl Generator {
             || s == "true"
             || s == "false"
             || s == "null"
-            || s.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false);
+            || s.chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false);
 
         if needs_quotes {
             // Use double quotes with escaping
@@ -343,15 +346,20 @@ mod tests {
 
         gen.write_string(&with_backslash, &mut out);
         // The output should have backslash escaped
-        assert!(out.contains("\\\\"), "Expected \\\\ backslash escape, got: {:?}", out);
+        assert!(
+            out.contains("\\\\"),
+            "Expected \\\\ backslash escape, got: {:?}",
+            out
+        );
     }
 
     #[test]
     fn test_generate_block_with_object_value() {
         let mut attrs = HashMap::new();
-        attrs.insert("obj".to_string(), Value::Object(vec![
-            ("key".to_string(), Value::String("val".to_string())),
-        ]));
+        attrs.insert(
+            "obj".to_string(),
+            Value::Object(vec![("key".to_string(), Value::String("val".to_string()))]),
+        );
 
         let block = Block {
             name: "config".to_string(),
@@ -360,7 +368,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("obj = {key = val}"));
     }
@@ -371,17 +381,23 @@ mod tests {
             name: "inner".to_string(),
             labels: vec![],
             blocks: vec![],
-            attributes: vec![("key".to_string(), Value::String("val".to_string()))].into_iter().collect(),
+            attributes: vec![("key".to_string(), Value::String("val".to_string()))]
+                .into_iter()
+                .collect(),
         };
 
         let block = Block {
             name: "outer".to_string(),
             labels: vec![],
             blocks: vec![inner],
-            attributes: vec![("attr".to_string(), Value::Number(1.0))].into_iter().collect(),
+            attributes: vec![("attr".to_string(), Value::Number(1.0))]
+                .into_iter()
+                .collect(),
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("outer"));
         assert!(output.contains("inner"));
@@ -401,7 +417,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("config {"));
         assert!(output.contains("name = test"));
@@ -420,7 +438,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("provider openai"));
         assert!(output.contains("api_key = sk-xxx"));
@@ -432,7 +452,9 @@ mod tests {
             name: "inner".to_string(),
             labels: vec![],
             blocks: Vec::new(),
-            attributes: vec![("key".to_string(), Value::String("val".to_string()))].into_iter().collect(),
+            attributes: vec![("key".to_string(), Value::String("val".to_string()))]
+                .into_iter()
+                .collect(),
         };
 
         let block = Block {
@@ -442,7 +464,9 @@ mod tests {
             attributes: HashMap::new(),
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("outer"));
         assert!(output.contains("inner"));
@@ -461,7 +485,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("enabled = true"));
         assert!(output.contains("disabled = false"));
@@ -479,7 +505,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("value = null"));
     }
@@ -487,11 +515,14 @@ mod tests {
     #[test]
     fn test_generate_list_values() {
         let mut attrs = HashMap::new();
-        attrs.insert("items".to_string(), Value::List(vec![
-            Value::Number(1.0),
-            Value::Number(2.0),
-            Value::Number(3.0),
-        ]));
+        attrs.insert(
+            "items".to_string(),
+            Value::List(vec![
+                Value::Number(1.0),
+                Value::Number(2.0),
+                Value::Number(3.0),
+            ]),
+        );
 
         let block = Block {
             name: "config".to_string(),
@@ -500,7 +531,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("items = [1, 2, 3]"));
     }
@@ -508,10 +541,13 @@ mod tests {
     #[test]
     fn test_generate_string_list() {
         let mut attrs = HashMap::new();
-        attrs.insert("names".to_string(), Value::List(vec![
-            Value::String("a".to_string()),
-            Value::String("b".to_string()),
-        ]));
+        attrs.insert(
+            "names".to_string(),
+            Value::List(vec![
+                Value::String("a".to_string()),
+                Value::String("b".to_string()),
+            ]),
+        );
 
         let block = Block {
             name: "config".to_string(),
@@ -520,7 +556,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("names"));
         assert!(output.contains("a"));
@@ -539,7 +577,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("items = []"));
     }
@@ -547,10 +587,13 @@ mod tests {
     #[test]
     fn test_generate_object_value() {
         let mut attrs = HashMap::new();
-        attrs.insert("obj".to_string(), Value::Object(vec![
-            ("key1".to_string(), Value::String("val1".to_string())),
-            ("key2".to_string(), Value::Number(42.0)),
-        ]));
+        attrs.insert(
+            "obj".to_string(),
+            Value::Object(vec![
+                ("key1".to_string(), Value::String("val1".to_string())),
+                ("key2".to_string(), Value::Number(42.0)),
+            ]),
+        );
 
         let block = Block {
             name: "config".to_string(),
@@ -559,7 +602,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("obj"));
         assert!(output.contains("key1"));
@@ -572,16 +617,22 @@ mod tests {
             name: "a".to_string(),
             labels: vec![],
             blocks: Vec::new(),
-            attributes: vec![("x".to_string(), Value::Number(1.0))].into_iter().collect(),
+            attributes: vec![("x".to_string(), Value::Number(1.0))]
+                .into_iter()
+                .collect(),
         };
         let block2 = Block {
             name: "b".to_string(),
             labels: vec![],
             blocks: Vec::new(),
-            attributes: vec![("y".to_string(), Value::Number(2.0))].into_iter().collect(),
+            attributes: vec![("y".to_string(), Value::Number(2.0))]
+                .into_iter()
+                .collect(),
         };
 
-        let doc = Document { blocks: vec![block1, block2] };
+        let doc = Document {
+            blocks: vec![block1, block2],
+        };
         let output = generate(&doc);
         assert!(output.contains("a {"));
         assert!(output.contains("b {"));
@@ -590,9 +641,14 @@ mod tests {
     #[test]
     fn test_generate_from_map() {
         let mut data = HashMap::new();
-        data.insert("key".to_string(), Value::Object(vec![
-            ("nested".to_string(), Value::String("value".to_string())),
-        ].into_iter().collect()));
+        data.insert(
+            "key".to_string(),
+            Value::Object(
+                vec![("nested".to_string(), Value::String("value".to_string()))]
+                    .into_iter()
+                    .collect(),
+            ),
+        );
 
         let output = generate_from_map(&data);
         assert!(output.contains("key"));
@@ -666,7 +722,9 @@ mod tests {
             attributes: HashMap::new(),
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("empty"));
     }
@@ -685,7 +743,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         // Check that attributes are sorted alphabetically
         let a_pos = output.find("a = 2").expect("should have a = 2");
@@ -708,7 +768,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("pi = 3.14159"));
         assert!(output.contains("e = 2.71828"));
@@ -726,7 +788,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         // Should output as integer without decimal
         assert!(output.contains("count = 42"));
@@ -736,9 +800,13 @@ mod tests {
     #[test]
     fn test_generate_function_call() {
         let mut attrs = HashMap::new();
-        attrs.insert("api_key".to_string(), Value::Call("env".to_string(), vec![
-            Value::String("API_KEY".to_string())
-        ]));
+        attrs.insert(
+            "api_key".to_string(),
+            Value::Call(
+                "env".to_string(),
+                vec![Value::String("API_KEY".to_string())],
+            ),
+        );
 
         let block = Block {
             name: "config".to_string(),
@@ -747,7 +815,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         // API_KEY doesn't need quotes since it has no special chars
         assert!(output.contains("api_key = env(API_KEY)"));
@@ -756,10 +826,16 @@ mod tests {
     #[test]
     fn test_generate_function_call_multiple_args() {
         let mut attrs = HashMap::new();
-        attrs.insert("path".to_string(), Value::Call("concat".to_string(), vec![
-            Value::String("hello".to_string()),
-            Value::String("world".to_string()),
-        ]));
+        attrs.insert(
+            "path".to_string(),
+            Value::Call(
+                "concat".to_string(),
+                vec![
+                    Value::String("hello".to_string()),
+                    Value::String("world".to_string()),
+                ],
+            ),
+        );
 
         let block = Block {
             name: "config".to_string(),
@@ -768,7 +844,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         // hello and world don't need quotes
         assert!(output.contains("path = concat(hello, world)"));
@@ -786,7 +864,9 @@ mod tests {
             attributes: attrs,
         };
 
-        let doc = Document { blocks: vec![block] };
+        let doc = Document {
+            blocks: vec![block],
+        };
         let output = generate(&doc);
         assert!(output.contains("val = getenv()"));
     }

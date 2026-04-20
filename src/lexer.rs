@@ -8,23 +8,23 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // Punctuation
-    LeftBrace,      // {
-    RightBrace,     // }
-    LeftBracket,    // [
-    RightBracket,   // ]
-    LeftParen,     // (
-    RightParen,    // )
-    Equal,          // =
-    PlusEqual,      // +=
-    Colon,          // :
-    Comma,          // ,
-    Comment,        // # comment
-    Newline,        // \n
+    LeftBrace,    // {
+    RightBrace,   // }
+    LeftBracket,  // [
+    RightBracket, // ]
+    LeftParen,    // (
+    RightParen,   // )
+    Equal,        // =
+    PlusEqual,    // +=
+    Colon,        // :
+    Comma,        // ,
+    Comment,      // # comment
+    Newline,      // \n
 
     // Identifiers and literals
-    Ident(String),     // foo_bar
-    String(String),    // "hello" or 'hello'
-    Number(f64),       // 42 or 3.14
+    Ident(String),  // foo_bar
+    String(String), // "hello" or 'hello'
+    Number(f64),    // 42 or 3.14
 
     // Keywords
     True,
@@ -206,11 +206,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        tokens.push(TokenWithSpan::new(
-            Token::Eof,
-            self.location,
-            self.location,
-        ));
+        tokens.push(TokenWithSpan::new(Token::Eof, self.location, self.location));
 
         tokens
     }
@@ -373,10 +369,13 @@ mod tests {
         let mut lexer = Lexer::new(input);
         let tokens = lexer.tokenize();
 
-        let idents: Vec<_> = tokens.iter().filter_map(|t| match &t.token {
-            Token::Ident(s) => Some(s.clone()),
-            _ => None,
-        }).collect();
+        let idents: Vec<_> = tokens
+            .iter()
+            .filter_map(|t| match &t.token {
+                Token::Ident(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect();
         assert!(idents.contains(&"name".to_string()));
         assert!(idents.contains(&"count".to_string()));
         assert!(idents.contains(&"enabled".to_string()));
@@ -473,7 +472,9 @@ mod tests {
         let mut lexer = Lexer::new(input);
         let tokens = lexer.tokenize();
 
-        assert!(tokens.iter().any(|t| t.token == Token::Ident("my_variable".to_string())));
+        assert!(tokens
+            .iter()
+            .any(|t| t.token == Token::Ident("my_variable".to_string())));
     }
 
     #[test]
@@ -490,13 +491,20 @@ mod tests {
         let input = "{}[]=:";
         let mut lexer = Lexer::new(input);
         let toks = lexer.tokenize();
-        let tokens: Vec<_> = toks.iter().take_while(|t| !matches!(&t.token, Token::Eof)).collect();
+        let tokens: Vec<_> = toks
+            .iter()
+            .take_while(|t| !matches!(&t.token, Token::Eof))
+            .collect();
 
         assert_eq!(tokens.len(), 6);
         assert!(tokens.iter().any(|t| matches!(&t.token, Token::LeftBrace)));
         assert!(tokens.iter().any(|t| matches!(&t.token, Token::RightBrace)));
-        assert!(tokens.iter().any(|t| matches!(&t.token, Token::LeftBracket)));
-        assert!(tokens.iter().any(|t| matches!(&t.token, Token::RightBracket)));
+        assert!(tokens
+            .iter()
+            .any(|t| matches!(&t.token, Token::LeftBracket)));
+        assert!(tokens
+            .iter()
+            .any(|t| matches!(&t.token, Token::RightBracket)));
         assert!(tokens.iter().any(|t| matches!(&t.token, Token::Equal)));
         assert!(tokens.iter().any(|t| matches!(&t.token, Token::Colon)));
     }
@@ -546,7 +554,9 @@ mod tests {
         let mut lexer = Lexer::new(input);
         let tokens = lexer.tokenize();
 
-        let b_token = tokens.iter().find(|t| matches!(&t.token, Token::Ident(_)) && t.token == Token::Ident("b".to_string()));
+        let b_token = tokens.iter().find(|t| {
+            matches!(&t.token, Token::Ident(_)) && t.token == Token::Ident("b".to_string())
+        });
         assert!(b_token.is_some());
         assert_eq!(b_token.unwrap().span.start.line, 2);
         assert_eq!(b_token.unwrap().span.start.column, 1);
@@ -558,7 +568,10 @@ mod tests {
         let mut lexer = Lexer::new(input);
         let tokens = lexer.tokenize();
 
-        assert!(tokens.last().map(|t| matches!(&t.token, Token::Eof)).unwrap_or(false));
+        assert!(tokens
+            .last()
+            .map(|t| matches!(&t.token, Token::Eof))
+            .unwrap_or(false));
     }
 
     #[test]
@@ -581,7 +594,10 @@ mod tests {
         let tokens = lexer.tokenize();
 
         // Should only have EOF (space and tab are skipped, no newlines in this input)
-        let non_eof: Vec<_> = tokens.iter().filter(|t| !matches!(&t.token, Token::Eof)).collect();
+        let non_eof: Vec<_> = tokens
+            .iter()
+            .filter(|t| !matches!(&t.token, Token::Eof))
+            .collect();
         assert!(non_eof.is_empty());
     }
 
@@ -593,7 +609,10 @@ mod tests {
 
         // Comment tokens are tracked but the comment content is skipped
         // The comment token is still produced
-        let comments: Vec<_> = tokens.iter().filter(|t| matches!(&t.token, Token::Comment)).collect();
+        let comments: Vec<_> = tokens
+            .iter()
+            .filter(|t| matches!(&t.token, Token::Comment))
+            .collect();
         assert_eq!(comments.len(), 1);
     }
 
@@ -604,7 +623,10 @@ mod tests {
         let tokens = lexer.tokenize();
 
         // Should have newlines and EOF
-        let newlines: Vec<_> = tokens.iter().filter(|t| matches!(&t.token, Token::Newline)).collect();
+        let newlines: Vec<_> = tokens
+            .iter()
+            .filter(|t| matches!(&t.token, Token::Newline))
+            .collect();
         assert_eq!(newlines.len(), 3);
     }
 
@@ -613,7 +635,10 @@ mod tests {
         let input = "a\r\nb";
         let mut lexer = Lexer::new(input);
         let toks = lexer.tokenize();
-        let idents: Vec<_> = toks.iter().filter(|t| matches!(&t.token, Token::Ident(_))).collect();
+        let idents: Vec<_> = toks
+            .iter()
+            .filter(|t| matches!(&t.token, Token::Ident(_)))
+            .collect();
         assert_eq!(idents.len(), 2);
     }
 
@@ -624,7 +649,10 @@ mod tests {
         let tokens = lexer.tokenize();
 
         // Just a minus should produce a number token (value 0)
-        let num_tokens: Vec<_> = tokens.iter().filter(|t| matches!(&t.token, Token::Number(_))).collect();
+        let num_tokens: Vec<_> = tokens
+            .iter()
+            .filter(|t| matches!(&t.token, Token::Number(_)))
+            .collect();
         assert_eq!(num_tokens.len(), 1);
     }
 
@@ -635,7 +663,10 @@ mod tests {
         let tokens = lexer.tokenize();
 
         // Plus alone should be skipped or produce ident
-        let non_eof: Vec<_> = tokens.iter().filter(|t| !matches!(&t.token, Token::Eof)).collect();
+        let non_eof: Vec<_> = tokens
+            .iter()
+            .filter(|t| !matches!(&t.token, Token::Eof))
+            .collect();
         assert!(non_eof.is_empty());
     }
 
