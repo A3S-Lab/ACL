@@ -1,6 +1,6 @@
 {
   "name": "@a3s-lab/acl",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A3S ACL (Agent Configuration Language) - Pure JavaScript parser and generator",
   "main": "src/index.js",
   "scripts": {

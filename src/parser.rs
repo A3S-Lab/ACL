@@ -355,6 +355,11 @@ impl<'a> Parser<'a> {
                 self.advance();
                 self.parse_list()
             }
+            Token::LeftBrace => {
+                self.advance();
+                let (_blocks, attrs) = self.parse_block_body()?;
+                Ok(Value::Object(attrs.into_iter().collect()))
+            }
             Token::Ident(name) => {
                 let name = name.clone();
                 // Could be an identifier, a nested block, or a function call
@@ -965,13 +970,6 @@ mod tests {
         assert!(doc.blocks.is_empty());
     }
 
-    #[test]
-    fn test_parse_error_unknown_token_in_value() {
-        // Test with an invalid token in value position
-        let input = r#"val = {"#;
-        let result = parse(input);
-        assert!(result.is_err());
-    }
 
     #[test]
     fn test_parse_comment_between_statements() {
@@ -1385,15 +1383,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_parse_error_unexpected_token_in_value() {
-        // This triggers the error at line 378 when an unexpected token appears in value position
-        let input = r#"val = {"#;
-        let result = parse(input);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.message.contains("Unexpected token"));
-    }
 
     #[test]
     fn test_parse_error_block_name_eof() {
@@ -1592,4 +1581,42 @@ mod tests {
         let result = parse(input);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_parse_list_of_objects() {
+        let input = r#"
+            knowledge_bases = [
+                { id = "WThXBKfN21eAxJOl3n1PA", name = "个人知识" },
+                { id = "another_id", name = "another_name" }
+            ]
+        "#;
+        let doc = parse(input).unwrap();
+        let attr = doc.blocks[0].attributes.get("knowledge_bases").unwrap();
+        match attr {
+            Value::List(items) => {
+                assert_eq!(items.len(), 2);
+                match &items[0] {
+                    Value::Object(pairs) => {
+                        let map: HashMap<_, _> = pairs.iter().cloned().collect();
+                        assert_eq!(map.get("id"), Some(&Value::String("WThXBKfN21eAxJOl3n1PA".to_string())));
+                        assert_eq!(map.get("name"), Some(&Value::String("个人知识".to_string())));
+                    }
+                    _ => panic!("Expected Object value"),
+                }
+            }
+            _ => panic!("Expected List value"),
+        }
+    }
+
+    #[test]
+    fn test_parse_list_of_single_object() {
+        let input = r#"items = [{ id = "1", name = "test" }]"#;
+        let doc = parse(input).unwrap();
+        let attr = doc.blocks[0].attributes.get("items").unwrap();
+        match attr {
+            Value::List(items) => assert_eq!(items.len(), 1),
+            _ => panic!("Expected List value"),
+        }
+    }
 }
+

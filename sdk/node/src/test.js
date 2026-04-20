@@ -93,3 +93,27 @@ console.log('Nested parsed, blocks:', nested.blocks.length);
 console.log('Generated:\n' + generate(nested));
 
 console.log('\n=== All tests passed! ===');
+
+// Test list of objects
+console.log('\n=== Test List of Objects ===');
+const listObjInput = `knowledge_bases = [
+  { id = "WThXBKfN21eAxJOl3n1PA", name = "个人知识" },
+  { id = "another_id", name = "another_name" }
+]`;
+const docList = parse(listObjInput);
+const kb = docList.blocks[0].attributes.get('knowledge_bases');
+console.log('Is List:', kb.kind === 'List');
+console.log('Items count:', kb.items.length);
+console.log('First item kind:', kb.items[0].kind);
+console.log('First item pairs:', kb.items[0].pairs.length);
+console.log('First id value:', kb.items[0].pairs.find(p => p[0] === 'id')[1].value);
+console.log('Generated:\n' + generate(docList));
+
+// Test single object in list
+console.log('\n=== Test Single Object in List ===');
+const singleObjInput = `items = [{ id = "1", name = "test" }]`;
+const docSingle = parse(singleObjInput);
+const items = docSingle.blocks[0].attributes.get('items');
+console.log('Is List:', items.kind === 'List');
+console.log('Items count:', items.items.length);
+console.log('First item kind:', items.items[0].kind);

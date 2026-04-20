@@ -191,6 +191,8 @@ class Parser {
         return { kind: 'Null' };
       case 'LeftBracket':
         return this.parseList();
+      case 'LeftBrace':
+        return this.parseObject();
       case 'Ident': {
         const name = token.value;
         this.advance();
@@ -205,6 +207,36 @@ class Parser {
       default:
         throw { message: `Unexpected token in value position: ${token.type}`, line: token.span.start.line, column: token.span.start.column };
     }
+  }
+
+  parseObject() {
+    this.advance(); // consume '{'
+    const pairs = [];
+
+    this.skipNewlines();
+    while (this.current()?.type !== 'RightBrace' && this.current()?.type !== 'Eof') {
+      if (this.current()?.type === 'Ident') {
+        const key = this.current().value;
+        this.advance();
+
+        if (this.current()?.type === 'Equal' || this.current()?.type === 'Colon') {
+          this.advance();
+          const value = this.parseValue();
+          pairs.push([key, value]);
+        }
+      }
+      this.skipNewlines();
+      if (this.current()?.type === 'Comma') {
+        this.advance();
+        this.skipNewlines();
+      }
+    }
+
+    if (this.current()?.type === 'RightBrace') {
+      this.advance();
+    }
+
+    return { kind: 'Object', pairs };
   }
 
   parseList() {
