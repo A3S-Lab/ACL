@@ -970,7 +970,6 @@ mod tests {
         assert!(doc.blocks.is_empty());
     }
 
-
     #[test]
     fn test_parse_comment_between_statements() {
         let input = r#"
@@ -1383,7 +1382,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_parse_error_block_name_eof() {
         // EOF during block name parsing triggers line 142-148
@@ -1598,8 +1596,14 @@ mod tests {
                 match &items[0] {
                     Value::Object(pairs) => {
                         let map: HashMap<_, _> = pairs.iter().cloned().collect();
-                        assert_eq!(map.get("id"), Some(&Value::String("WThXBKfN21eAxJOl3n1PA".to_string())));
-                        assert_eq!(map.get("name"), Some(&Value::String("个人知识".to_string())));
+                        assert_eq!(
+                            map.get("id"),
+                            Some(&Value::String("WThXBKfN21eAxJOl3n1PA".to_string()))
+                        );
+                        assert_eq!(
+                            map.get("name"),
+                            Some(&Value::String("个人知识".to_string()))
+                        );
                     }
                     _ => panic!("Expected Object value"),
                 }
@@ -1619,4 +1623,3 @@ mod tests {
         }
     }
 }
-
