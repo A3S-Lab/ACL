@@ -1,5 +1,5 @@
 [package]
-name = "acl"
+name = "a3s-acl"
 version = "0.1.0"
 edition = "2021"
 description = "Agent Configuration Language - A configuration language similar to HCL"
