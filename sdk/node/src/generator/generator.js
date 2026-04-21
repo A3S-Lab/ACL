@@ -9,18 +9,11 @@
 
 function needsQuotes(s) {
   if (s === '') return true;
-  if (s.includes(' ') || s.includes('#') || s.includes('"') || s.includes("'") ||
-      s.includes('\\') || s.includes('\n') || s.includes('\r') || s.includes('\t') ||
-      s.includes(':') || s.includes('=') || s.includes('{') || s.includes('}') ||
-      s.includes('[') || s.includes(']') || s.startsWith('-') || s.startsWith('.') ||
-      s === 'true' || s === 'false' || s === 'null') {
-    return true;
-  }
-  if (s.length > 0 && s[0] >= '0' && s[0] <= '9') return true;
-  // For HCL attribute values, always quote to avoid interpretation as identifier
-  // Model IDs with / or - should be quoted
-  if (s.includes('/') || s.includes('-')) return true;
-  return false;
+  // Only plain ASCII digits (optionally with single decimal point) are safe without quotes
+  // Everything else (including keywords like true/false/null, identifiers like Kimi,
+  // and any string with special chars) must be quoted for HCL compatibility
+  if (/^[0-9]+(?:[.][0-9]+)?$/.test(s)) return false;
+  return true;
 }
 
 function escapeString(s) {

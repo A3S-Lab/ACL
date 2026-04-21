@@ -176,30 +176,10 @@ impl Generator {
 
     fn write_string(&self, s: &str, out: &mut String) {
         // Check if the string needs quotes
-        let needs_quotes = s.is_empty()
-            || s.contains(' ')
-            || s.contains('#')
-            || s.contains('"')
-            || s.contains('\'')
-            || s.contains('\\')
-            || s.contains('\n')
-            || s.contains('\r')
-            || s.contains('\t')
-            || s.contains(':')
-            || s.contains('=')
-            || s.contains('{')
-            || s.contains('}')
-            || s.contains('[')
-            || s.contains(']')
-            || s.starts_with('-')
-            || s.starts_with('.')
-            || s == "true"
-            || s == "false"
-            || s == "null"
-            || s.chars()
-                .next()
-                .map(|c| c.is_ascii_digit())
-                .unwrap_or(false);
+        // In HCL, only the special keywords true, false, null can appear unquoted AS LITERALS,
+        // but when we have a String value (Value::String), we must quote it to preserve the string type.
+        // So we quote everything except empty strings.
+        let needs_quotes = !s.is_empty();
 
         if needs_quotes {
             // Use double quotes with escaping
@@ -291,7 +271,7 @@ mod tests {
         };
 
         let output = generate(&doc);
-        assert!(output.contains("name = test"));
+        assert!(output.contains("name = \"test\""));
     }
 
     #[test]
@@ -392,7 +372,7 @@ mod tests {
             blocks: vec![block],
         };
         let output = generate(&doc);
-        assert!(output.contains("obj = {key = val}"));
+        assert!(output.contains("obj = {key = \"val\"}"));
     }
 
     #[test]
@@ -442,7 +422,7 @@ mod tests {
         };
         let output = generate(&doc);
         assert!(output.contains("config {"));
-        assert!(output.contains("name = test"));
+        assert!(output.contains("name = \"test\""));
         assert!(output.contains("count = 42"));
     }
 
@@ -462,8 +442,8 @@ mod tests {
             blocks: vec![block],
         };
         let output = generate(&doc);
-        assert!(output.contains("provider openai"));
-        assert!(output.contains("api_key = sk-xxx"));
+        assert!(output.contains("provider \"openai\""));
+        assert!(output.contains("api_key = \"sk-xxx\""));
     }
 
     #[test]
@@ -841,8 +821,8 @@ mod tests {
             blocks: vec![block],
         };
         let output = generate(&doc);
-        // API_KEY doesn't need quotes since it has no special chars
-        assert!(output.contains("api_key = env(API_KEY)"));
+        // String arguments must be quoted for HCL compatibility
+        assert!(output.contains("api_key = env(\"API_KEY\")"));
     }
 
     #[test]
@@ -870,8 +850,8 @@ mod tests {
             blocks: vec![block],
         };
         let output = generate(&doc);
-        // hello and world don't need quotes
-        assert!(output.contains("path = concat(hello, world)"));
+        // String arguments must be quoted for HCL compatibility
+        assert!(output.contains("path = concat(\"hello\", \"world\")"));
     }
 
     #[test]
@@ -921,14 +901,14 @@ mod tests {
 
         // Without labels_as_attrs (default ACL format)
         let output = generate(&doc);
-        // ACL format uses unquoted labels when not needed
+        // HCL format quotes all non-empty string values
         assert!(
-            output.contains("providers openai"),
-            "Should have ACL-style label"
+            output.contains("providers \"openai\""),
+            "Should have quoted label"
         );
         assert!(
-            output.contains("models kimi-k2.5"),
-            "Should have ACL-style label"
+            output.contains("models \"kimi-k2.5\""),
+            "Should have quoted label"
         );
 
         // With labels_as_attrs (HCL format)
@@ -943,7 +923,7 @@ mod tests {
             "Should have HCL-style block"
         );
         assert!(
-            output.contains("name = openai"),
+            output.contains("name = \"openai\""),
             "Should output label as name attr"
         );
         assert!(
@@ -1007,8 +987,8 @@ mod tests {
         assert!(output.contains("providers {"));
         assert!(output.contains("models {"));
 
-        // Should have name = ... as attribute (unquoted for simple identifiers)
-        assert!(output.contains("name = openai"));
-        assert!(output.contains("name = kimi-k2.5"));
+        // Should have name = ... as attribute (quoted for HCL string values)
+        assert!(output.contains("name = \"openai\""));
+        assert!(output.contains("name = \"kimi-k2.5\""));
     }
 }
