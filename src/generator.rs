@@ -12,6 +12,9 @@ pub struct GeneratorConfig {
     pub indent: &'static str,
     /// Enable inline comments
     pub comments: bool,
+    /// Output labels as attributes (e.g., `name = "label"`) instead of block labels (e.g., `block "label" { }`)
+    /// This generates HCL-compatible output instead of ACL-style labeled blocks
+    pub labels_as_attrs: bool,
 }
 
 impl Default for GeneratorConfig {
@@ -19,6 +22,7 @@ impl Default for GeneratorConfig {
         Self {
             indent: "  ",
             comments: false,
+            labels_as_attrs: false,
         }
     }
 }
@@ -72,17 +76,33 @@ impl Generator {
 
         // Write block header
         out.push_str(&block.name);
-        for label in &block.labels {
-            out.push(' ');
-            self.write_string(label, out);
+
+        // In labels_as_attrs mode, don't output labels in block header
+        // Instead, we'll output them as attributes inside the block
+        if !self.config.labels_as_attrs {
+            for label in &block.labels {
+                out.push(' ');
+                self.write_string(label, out);
+            }
         }
 
-        if block.blocks.is_empty() && block.attributes.is_empty() {
+        if block.blocks.is_empty()
+            && block.attributes.is_empty()
+            && (self.config.labels_as_attrs || block.labels.is_empty())
+        {
             out.push('\n');
             return;
         }
 
         out.push_str(" {\n");
+
+        // In labels_as_attrs mode, output the first label as a "name" attribute
+        if self.config.labels_as_attrs && !block.labels.is_empty() {
+            self.write_indent(out, indent + 1);
+            out.push_str("name = ");
+            self.write_string(&block.labels[0], out);
+            out.push('\n');
+        }
 
         // Write attributes
         let mut attrs: Vec<_> = block.attributes.iter().collect();
@@ -672,10 +692,12 @@ mod tests {
         let config = GeneratorConfig {
             indent: "\t",
             comments: true,
+            labels_as_attrs: false,
         };
         let gen = Generator::with_config(config);
         assert_eq!(gen.config.indent, "\t");
         assert!(gen.config.comments);
+        assert!(!gen.config.labels_as_attrs);
     }
 
     #[test]
@@ -869,5 +891,124 @@ mod tests {
         };
         let output = generate(&doc);
         assert!(output.contains("val = getenv()"));
+    }
+
+    #[test]
+    fn test_generate_labels_as_attrs() {
+        // Test the labels_as_attrs config option
+        let mut attrs = HashMap::new();
+        attrs.insert("api_key".to_string(), Value::String("sk-xxx".to_string()));
+
+        let inner = Block {
+            name: "models".to_string(),
+            labels: vec!["kimi-k2.5".to_string()],
+            blocks: vec![],
+            attributes: vec![("id".to_string(), Value::String("kimi-k2.5".to_string()))]
+                .into_iter()
+                .collect(),
+        };
+
+        let block = Block {
+            name: "providers".to_string(),
+            labels: vec!["openai".to_string()],
+            blocks: vec![inner],
+            attributes: attrs,
+        };
+
+        let doc = Document {
+            blocks: vec![block],
+        };
+
+        // Without labels_as_attrs (default ACL format)
+        let output = generate(&doc);
+        // ACL format uses unquoted labels when not needed
+        assert!(
+            output.contains("providers openai"),
+            "Should have ACL-style label"
+        );
+        assert!(
+            output.contains("models kimi-k2.5"),
+            "Should have ACL-style label"
+        );
+
+        // With labels_as_attrs (HCL format)
+        let config = GeneratorConfig {
+            labels_as_attrs: true,
+            ..Default::default()
+        };
+        let gen = Generator::with_config(config);
+        let output = gen.generate(&doc);
+        assert!(
+            output.contains("providers {"),
+            "Should have HCL-style block"
+        );
+        assert!(
+            output.contains("name = openai"),
+            "Should output label as name attr"
+        );
+        assert!(
+            !output.contains("providers openai"),
+            "Should NOT have ACL-style label header"
+        );
+    }
+
+    #[test]
+    fn test_generate_labels_as_attrs_nested() {
+        // Test nested blocks with labels_as_attrs
+        let model_block = Block {
+            name: "models".to_string(),
+            labels: vec!["kimi-k2.5".to_string()],
+            blocks: vec![],
+            attributes: vec![
+                ("id".to_string(), Value::String("kimi-k2.5".to_string())),
+                ("name".to_string(), Value::String("Kimixxx".to_string())),
+            ]
+            .into_iter()
+            .collect(),
+        };
+
+        let provider_block = Block {
+            name: "providers".to_string(),
+            labels: vec!["openai".to_string()],
+            blocks: vec![model_block],
+            attributes: vec![
+                ("name".to_string(), Value::String("openai".to_string())),
+                (
+                    "base_url".to_string(),
+                    Value::String("https://api.openai.com/v1".to_string()),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        };
+
+        let doc = Document {
+            blocks: vec![provider_block],
+        };
+
+        let config = GeneratorConfig {
+            labels_as_attrs: true,
+            ..Default::default()
+        };
+        let gen = Generator::with_config(config);
+        let output = gen.generate(&doc);
+
+        // Should NOT have labels in block header (e.g., "providers openai")
+        assert!(
+            !output.contains("providers openai"),
+            "Should not have ACL-style label in header"
+        );
+        assert!(
+            !output.contains("models kimi-k2.5"),
+            "Should not have ACL-style label in header"
+        );
+
+        // Should have HCL-style blocks
+        assert!(output.contains("providers {"));
+        assert!(output.contains("models {"));
+
+        // Should have name = ... as attribute (unquoted for simple identifiers)
+        assert!(output.contains("name = openai"));
+        assert!(output.contains("name = kimi-k2.5"));
     }
 }

@@ -58,6 +58,7 @@ export interface ParseError {
 // Core API
 export function parse(input: string): Document;
 export function generate(doc: Document): string;
+export function generateHCL(doc: Document): string;
 
 // Value constructors
 export function string(s: string): Value;
@@ -100,6 +101,7 @@ export class Parser {
 export default {
   parse,
   generate,
+  generateHCL,
   string,
   number,
   boolean,

@@ -11,7 +11,7 @@ const { Lexer } = require('./lexer/Lexer.js');
 const { Parser, parse } = require('./parser/Parser.js');
 
 // Generator
-const { generate } = require('./generator/generator.js');
+const { generate, generateHCL } = require('./generator/generator.js');
 
 // Builder
 const {
@@ -32,6 +32,7 @@ module.exports = {
 
   // Generation
   generate,
+  generateHCL,
 
   // Value constructors
   string,
