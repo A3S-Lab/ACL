@@ -19,7 +19,7 @@ pub use parser::{parse, ParseError};
 /// # Example
 ///
 /// ```
-/// use acl::parse;
+/// use a3s_acl::parse;
 ///
 /// let input = r#"
 ///     default_model = "openai/gpt-4"
@@ -45,7 +45,7 @@ pub fn parse_acl(input: &str) -> Result<Document, ParseError> {
 /// # Example
 ///
 /// ```
-/// use acl::{generate, Document, Block, Value};
+/// use a3s_acl::{generate, Document, Block, Value};
 /// use std::collections::HashMap;
 ///
 /// let mut attrs = HashMap::new();

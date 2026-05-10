@@ -222,6 +222,7 @@ impl<'a> Parser<'a> {
                             }
                             Token::LeftBrace => {
                                 // Nested block with no labels
+                                self.advance(); // consume the block type name
                                 let block = self.parse_nested_block(name.clone())?;
                                 blocks.push(block);
                             }
