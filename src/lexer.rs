@@ -68,7 +68,7 @@ impl TokenWithSpan {
 
 /// Lexer state machine
 pub struct Lexer<'a> {
-    input: &'a str,
+    _input: &'a str,
     chars: Vec<char>,
     pos: usize,
     pub location: Location,
@@ -78,7 +78,7 @@ impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
         let chars: Vec<char> = input.chars().collect();
         Self {
-            input,
+            _input: input,
             chars,
             pos: 0,
             location: Location {
@@ -319,8 +319,8 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let num_str = &self.input[start..self.pos];
-        let number = f64::from_str(num_str).unwrap_or(0.0);
+        let num_str: String = self.chars[start..self.pos].iter().collect();
+        let number = f64::from_str(&num_str).unwrap_or(0.0);
         (Token::Number(number), start)
     }
 
@@ -335,12 +335,12 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let ident = &self.input[start..self.pos];
-        let token = match ident {
+        let ident: String = self.chars[start..self.pos].iter().collect();
+        let token = match ident.as_str() {
             "true" => Token::True,
             "false" => Token::False,
             "null" => Token::Null,
-            _ => Token::Ident(ident.to_string()),
+            _ => Token::Ident(ident),
         };
 
         (token, start)
@@ -726,5 +726,18 @@ world'";
         if let Token::String(s) = &string_token.unwrap().token {
             assert_eq!(s, "hello\\qworld");
         }
+    }
+
+    #[test]
+    fn test_lexer_tokens_after_multibyte_string() {
+        let mut lexer = Lexer::new("files = [\"A卷原卷.pdf\"]\nnext_value = true\nscore = 0.75");
+        let tokens = lexer.tokenize();
+
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.token, Token::Ident(value) if value == "next_value")));
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.token, Token::Number(value) if value == 0.75)));
     }
 }
