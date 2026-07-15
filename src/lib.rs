@@ -1,7 +1,7 @@
 // ============================================================================
 // ACL - Agent Configuration Language
 //
-// A configuration language similar to HCL for defining agent configurations.
+// A3S-native configuration language for defining agent configurations.
 // ============================================================================
 
 pub mod ast;

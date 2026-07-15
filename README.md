@@ -4,7 +4,7 @@ A lightweight, typed configuration language for agent configurations. ACL is des
 
 ## Features
 
-- **HCL-like Syntax**: Familiar block-based structure with attributes and nested blocks
+- **ACL Block Syntax**: Labeled blocks, attributes, nested blocks, and function calls defined by the A3S ACL grammar
 - **Typed Values**: Strings, numbers, booleans, lists, objects, null, and function calls
 - **Function Calls**: Built-in support for `env()`, `concat()`, and custom functions
 - **Bidirectional**: Parse ACL text to AST, generate AST back to text
@@ -12,7 +12,7 @@ A lightweight, typed configuration language for agent configurations. ACL is des
 
 ## Syntax
 
-```hcl
+```acl
 providers "openai" {
     api_key = env("OPENAI_API_KEY")
     base_url = "https://api.openai.com/v1"
