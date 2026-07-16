@@ -38,11 +38,11 @@ nested "label" {
 
 ```toml
 [dependencies]
-a3s-acl = "0.1.0"
+a3s-acl = "0.2.2"
 ```
 
 ```rust
-use acl::{parse, generate, string, number, boolean, BlockBuilder, DocumentBuilder};
+use a3s_acl::{parse, generate, string, number, boolean, BlockBuilder, DocumentBuilder};
 
 let doc = parse(r#"
     name = "test"
