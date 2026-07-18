@@ -68,8 +68,9 @@ impl TokenWithSpan {
 
 /// Lexer state machine
 pub struct Lexer<'a> {
-    _input: &'a str,
+    input: &'a str,
     chars: Vec<char>,
+    byte_offsets: Vec<usize>,
     pos: usize,
     pub location: Location,
 }
@@ -77,9 +78,15 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
         let chars: Vec<char> = input.chars().collect();
+        let byte_offsets = input
+            .char_indices()
+            .map(|(offset, _)| offset)
+            .chain(std::iter::once(input.len()))
+            .collect();
         Self {
-            _input: input,
+            input,
             chars,
+            byte_offsets,
             pos: 0,
             location: Location {
                 line: 1,
@@ -113,6 +120,10 @@ impl<'a> Lexer<'a> {
 
     fn make_token(&self, token: Token, start: Location) -> TokenWithSpan {
         TokenWithSpan::new(token, start, self.location)
+    }
+
+    fn char_slice(&self, start: usize, end: usize) -> &str {
+        &self.input[self.byte_offsets[start]..self.byte_offsets[end]]
     }
 
     /// Tokenize the entire input
@@ -319,8 +330,8 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let num_str: String = self.chars[start..self.pos].iter().collect();
-        let number = f64::from_str(&num_str).unwrap_or(0.0);
+        let num_str = self.char_slice(start, self.pos);
+        let number = f64::from_str(num_str).unwrap_or(0.0);
         (Token::Number(number), start)
     }
 
@@ -335,12 +346,12 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let ident: String = self.chars[start..self.pos].iter().collect();
-        let token = match ident.as_str() {
+        let ident = self.char_slice(start, self.pos);
+        let token = match ident {
             "true" => Token::True,
             "false" => Token::False,
             "null" => Token::Null,
-            _ => Token::Ident(ident),
+            _ => Token::Ident(ident.to_string()),
         };
 
         (token, start)
@@ -379,6 +390,46 @@ mod tests {
         assert!(idents.contains(&"name".to_string()));
         assert!(idents.contains(&"count".to_string()));
         assert!(idents.contains(&"enabled".to_string()));
+    }
+
+    #[test]
+    fn test_lexer_identifiers_and_numbers_after_multibyte_strings() {
+        let input = r#"default_model = "智谱/glm-5.2"
+
+providers "智谱" {
+  apiKey = "dummy"
+  models "glm-5.2" {
+    name = "glm-5.2"
+    context = 128000
+  }
+}"#;
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+
+        for expected in [
+            "default_model",
+            "providers",
+            "apiKey",
+            "models",
+            "name",
+            "context",
+        ] {
+            assert!(
+                tokens
+                    .iter()
+                    .any(|token| token.token == Token::Ident(expected.to_string())),
+                "missing identifier token: {expected}"
+            );
+        }
+        assert!(tokens
+            .iter()
+            .any(|token| token.token == Token::String("智谱/glm-5.2".to_string())));
+        assert!(tokens
+            .iter()
+            .any(|token| token.token == Token::String("智谱".to_string())));
+        assert!(tokens
+            .iter()
+            .any(|token| token.token == Token::Number(128000.0)));
     }
 
     #[test]
