@@ -8,7 +8,7 @@
 const { Lexer } = require('./lexer/Lexer.js');
 
 // Parser
-const { Parser, parse } = require('./parser/Parser.js');
+const { DEFAULT_PARSE_LIMITS, Parser, parse } = require('./parser/Parser.js');
 
 // Generator
 const { generate, generateHCL } = require('./generator/generator.js');
@@ -29,6 +29,7 @@ const {
 module.exports = {
   // Core parsing
   parse,
+  DEFAULT_PARSE_LIMITS,
 
   // Generation
   generate,

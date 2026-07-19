@@ -3,8 +3,9 @@
  */
 
 class Lexer {
-  constructor(input) {
+  constructor(input, maxTokenBytes = Number.POSITIVE_INFINITY) {
     this.input = input;
+    this.maxTokenBytes = maxTokenBytes;
     this.pos = 0;
     this.line = 1;
     this.column = 1;
@@ -150,6 +151,7 @@ class Lexer {
 
     while (this.current() !== undefined) {
       const start = this.startLocation();
+      const startPos = this.pos;
       const c = this.current();
 
       switch (c) {
@@ -237,6 +239,15 @@ class Lexer {
           } else {
             this.advance();
           }
+      }
+
+      const tokenBytes = Buffer.byteLength(this.input.slice(startPos, this.pos), 'utf8');
+      if (tokenBytes > this.maxTokenBytes) {
+        throw {
+          message: `ACL parse limit exceeded: token is longer than ${this.maxTokenBytes} bytes`,
+          line: start.line,
+          column: start.column,
+        };
       }
     }
 

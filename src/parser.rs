@@ -4,6 +4,7 @@
 
 use crate::ast::{Block, Document, Value};
 use crate::lexer::{Lexer, Token, TokenWithSpan};
+use crate::parse_limits::{nesting_limit_error, ParseLimits, DEFAULT_PARSE_LIMITS};
 use std::collections::HashMap;
 
 /// Parse error
@@ -30,17 +31,60 @@ impl std::error::Error for ParseError {}
 pub struct Parser<'a> {
     tokens: Vec<TokenWithSpan>,
     pos: usize,
+    limits: ParseLimits,
+    initial_error: Option<ParseError>,
+    block_depth: usize,
     _marker: std::marker::PhantomData<&'a ()>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
-        let mut lexer = Lexer::new(input);
+        Self::with_limits(input, DEFAULT_PARSE_LIMITS)
+    }
+
+    /// Construct a parser with explicit resource limits.
+    pub fn with_limits(input: &'a str, limits: ParseLimits) -> Self {
+        if input.len() > limits.max_document_bytes {
+            return Self {
+                tokens: vec![TokenWithSpan::new(
+                    Token::Eof,
+                    Default::default(),
+                    Default::default(),
+                )],
+                pos: 0,
+                limits,
+                initial_error: Some(ParseError {
+                    message: format!(
+                        "ACL parse limit exceeded: document is larger than {} bytes",
+                        limits.max_document_bytes
+                    ),
+                    line: 1,
+                    column: 1,
+                }),
+                block_depth: 0,
+                _marker: std::marker::PhantomData,
+            };
+        }
+
+        let mut lexer = Lexer::with_max_token_bytes(input, limits.max_token_bytes);
         let tokens = lexer.tokenize();
+        let initial_error = lexer.token_limit_location().map(|location| ParseError {
+            message: format!(
+                "ACL parse limit exceeded: token is longer than {} bytes",
+                limits.max_token_bytes
+            ),
+            line: location.line,
+            column: location.column,
+        });
+        let initial_error =
+            initial_error.or_else(|| nesting_limit_error(&tokens, limits.max_nesting_depth));
 
         Self {
             tokens,
             pos: 0,
+            limits,
+            initial_error,
+            block_depth: 0,
             _marker: std::marker::PhantomData,
         }
     }
@@ -71,6 +115,10 @@ impl<'a> Parser<'a> {
 
     /// Parse the entire input into a Document
     pub fn parse(&mut self) -> Result<Document, ParseError> {
+        if let Some(error) = &self.initial_error {
+            return Err(error.clone());
+        }
+
         let mut doc = Document::default();
         self.skip_newlines();
 
@@ -79,8 +127,10 @@ impl<'a> Parser<'a> {
                 break;
             }
 
+            let location = t.span.start;
             match &t.token {
                 Token::Ident(name) => {
+                    self.ensure_collection_capacity(doc.blocks.len(), location)?;
                     // Check if this is a bare attribute (name = value) or a block
                     let name = name.clone();
                     let is_bare_attr = {
@@ -122,8 +172,48 @@ impl<'a> Parser<'a> {
         Ok(doc)
     }
 
+    fn ensure_collection_capacity(
+        &self,
+        current_len: usize,
+        location: crate::lexer::Location,
+    ) -> Result<(), ParseError> {
+        if current_len >= self.limits.max_collection_items {
+            return Err(ParseError {
+                message: format!(
+                    "ACL parse limit exceeded: collection has more than {} items",
+                    self.limits.max_collection_items
+                ),
+                line: location.line,
+                column: location.column,
+            });
+        }
+        Ok(())
+    }
+
     /// Parse a single block
     fn parse_block(&mut self) -> Result<Block, ParseError> {
+        let location = self
+            .current()
+            .map(|token| token.span.start)
+            .unwrap_or_default();
+        if self.block_depth >= self.limits.max_nesting_depth {
+            return Err(ParseError {
+                message: format!(
+                    "ACL parse limit exceeded: nesting depth is greater than {}",
+                    self.limits.max_nesting_depth
+                ),
+                line: location.line,
+                column: location.column,
+            });
+        }
+
+        self.block_depth += 1;
+        let result = self.parse_block_inner();
+        self.block_depth -= 1;
+        result
+    }
+
+    fn parse_block_inner(&mut self) -> Result<Block, ParseError> {
         let ident = match self.current() {
             Some(t) if matches!(t.token, Token::Ident(_)) => {
                 let name = match &t.token {
@@ -154,7 +244,10 @@ impl<'a> Parser<'a> {
         while let Some(t) = self.current() {
             match &t.token {
                 Token::String(s) => {
-                    labels.push(s.clone());
+                    let location = t.span.start;
+                    let label = s.clone();
+                    self.ensure_collection_capacity(labels.len(), location)?;
+                    labels.push(label);
                     self.advance();
                 }
                 Token::Ident(s)
@@ -187,6 +280,7 @@ impl<'a> Parser<'a> {
     fn parse_block_body(&mut self) -> Result<(Vec<Block>, HashMap<String, Value>), ParseError> {
         let mut blocks = Vec::new();
         let mut attributes = HashMap::new();
+        let mut item_count = 0;
 
         self.skip_newlines();
 
@@ -203,6 +297,7 @@ impl<'a> Parser<'a> {
                 }
                 Token::Ident(name) => {
                     // Check if this is a nested block or attribute
+                    let location = t.span.start;
                     let name = name.clone();
                     let after_ident = self.peek(1);
                     let after_after = self.peek(2);
@@ -211,20 +306,26 @@ impl<'a> Parser<'a> {
                         match &next.token {
                             Token::Equal | Token::Colon => {
                                 // It's an attribute: name = value or name : value
+                                self.ensure_collection_capacity(item_count, location)?;
                                 self.advance(); // consume the identifier
                                 let attr = self.parse_attribute(name)?;
                                 attributes.insert(attr.0, attr.1);
+                                item_count += 1;
                             }
                             Token::String(_) => {
                                 // It's a block with a string label, parse as nested block
+                                self.ensure_collection_capacity(item_count, location)?;
                                 let block = self.parse_block()?;
                                 blocks.push(block);
+                                item_count += 1;
                             }
                             Token::LeftBrace => {
                                 // Nested block with no labels
+                                self.ensure_collection_capacity(item_count, location)?;
                                 self.advance(); // consume the block type name
                                 let block = self.parse_nested_block(name.clone())?;
                                 blocks.push(block);
+                                item_count += 1;
                             }
                             Token::Ident(_) => {
                                 // This could be a nested block type
@@ -233,19 +334,25 @@ impl<'a> Parser<'a> {
                                     match &after.token {
                                         Token::LeftBrace | Token::String(_) => {
                                             // It's a nested block
+                                            self.ensure_collection_capacity(item_count, location)?;
                                             let block = self.parse_block()?;
                                             blocks.push(block);
+                                            item_count += 1;
                                         }
                                         Token::Equal | Token::Colon => {
                                             // It's an attribute
+                                            self.ensure_collection_capacity(item_count, location)?;
                                             self.advance(); // consume the identifier
                                             let attr = self.parse_attribute(name)?;
                                             attributes.insert(attr.0, attr.1);
+                                            item_count += 1;
                                         }
                                         _ => {
                                             // Try as nested block
+                                            self.ensure_collection_capacity(item_count, location)?;
                                             let block = self.parse_block()?;
                                             blocks.push(block);
+                                            item_count += 1;
                                         }
                                     }
                                 } else {
@@ -283,7 +390,10 @@ impl<'a> Parser<'a> {
         while let Some(t) = self.current() {
             match &t.token {
                 Token::String(s) => {
-                    labels.push(s.clone());
+                    let location = t.span.start;
+                    let label = s.clone();
+                    self.ensure_collection_capacity(labels.len(), location)?;
+                    labels.push(label);
                     self.advance();
                 }
                 _ => break,
@@ -433,6 +543,8 @@ impl<'a> Parser<'a> {
                     self.advance();
                 }
                 _ => {
+                    let location = t.span.start;
+                    self.ensure_collection_capacity(items.len(), location)?;
                     let value = self.parse_value()?;
                     items.push(value);
                     self.skip_newlines();
@@ -471,6 +583,11 @@ impl<'a> Parser<'a> {
         }
 
         loop {
+            let location = self
+                .current()
+                .map(|token| token.span.start)
+                .unwrap_or_default();
+            self.ensure_collection_capacity(args.len(), location)?;
             let value = self.parse_value()?;
             args.push(value);
             self.skip_newlines();
@@ -507,7 +624,12 @@ impl<'a> Parser<'a> {
 
 /// Parse ACL text into a Document
 pub fn parse(input: &str) -> Result<Document, ParseError> {
-    Parser::new(input).parse()
+    parse_with_limits(input, DEFAULT_PARSE_LIMITS)
+}
+
+/// Parse ACL text into a Document with explicit resource limits.
+pub fn parse_with_limits(input: &str, limits: ParseLimits) -> Result<Document, ParseError> {
+    Parser::with_limits(input, limits).parse()
 }
 
 #[cfg(test)]
