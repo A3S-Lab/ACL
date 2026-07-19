@@ -8,6 +8,8 @@ A lightweight, typed configuration language for agent configurations. ACL is des
 - **Typed Values**: Strings, numbers, booleans, lists, objects, null, and function calls
 - **Function Calls**: Built-in support for `env()`, `concat()`, and custom functions
 - **Bidirectional**: Parse ACL text to AST, generate AST back to text
+- **Type-Stable Strings**: Canonical generation quotes empty, numeric-looking,
+  keyword-like, and Unicode strings so parsing cannot change their value kind
 - **Multi-platform SDK**: Rust crate and Node.js/TypeScript SDK
 
 ## Syntax
@@ -142,6 +144,11 @@ const doc = new DocumentBuilder()
 | `List` | Ordered collection: `[1, 2, 3]` |
 | `Object` | Key-value pairs: `{key = value}` |
 | `Call` | Function invocation: `env("VAR")` |
+
+Canonical generation always quotes `String` values. For example, `""`, `"42"`,
+`"1.88"`, `"true"`, and `"null"` remain strings after a parse/generate/parse
+round trip. Rust and Node validate this rule against the shared fixture under
+`fixtures/canonical/`.
 
 ## License
 
