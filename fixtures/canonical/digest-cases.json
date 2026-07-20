@@ -1,0 +1,23 @@
+[
+  {
+    "name": "unordered maps and numeric boundaries",
+    "input": "settings {\n  zeta = {z = 2, nested = {z = \"line\\nvalue\", a = true}, a = 1}\n  alpha = [\"Ω\", 0.0000001, -0, 1e21, 100000000000000000000]\n}",
+    "equivalentInput": "settings {\n  alpha = [\"Ω\", 1e-7, 0, 1e+21, 1e20]\n  zeta = {a = 1, nested = {a = true, z = \"line\\nvalue\"}, z = 2}\n}",
+    "canonical": "settings {\n  alpha = [\"Ω\", 1e-7, 0, 1e+21, 100000000000000000000]\n  zeta = {a = 1, nested = {a = true, z = \"line\\nvalue\"}, z = 2}\n}\n",
+    "digest": "sha256:0cab78e10797fb3fd97d6c48bd684486030a5ec4c516b511eab80e25da425131"
+  },
+  {
+    "name": "duplicate object keys use the last value",
+    "input": "value = {key = 0, key = 1}",
+    "equivalentInput": "value = {key = 1}",
+    "canonical": "value {\n  value = {key = 1}\n}\n",
+    "digest": "sha256:8e786ef2ccaaee5e906a79e8ad8303204e815376884ef90988a58666bb1c0b15"
+  },
+  {
+    "name": "empty document",
+    "input": "",
+    "equivalentInput": "  \n\n",
+    "canonical": "\n",
+    "digest": "sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+]

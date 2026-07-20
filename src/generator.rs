@@ -3,7 +3,7 @@
 // ============================================================================
 
 use crate::ast::{Block, Document, Value};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// Configuration for the generator
 #[derive(Debug, Clone)]
@@ -130,11 +130,8 @@ impl Generator {
         match value {
             Value::String(s) => self.write_string(s, out),
             Value::Number(n) => {
-                if n.fract() == 0.0 {
-                    out.push_str(&format!("{}", *n as i64));
-                } else {
-                    out.push_str(&format!("{}", n));
-                }
+                let mut buffer = ryu_js::Buffer::new();
+                out.push_str(buffer.format(*n));
             }
             Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
             Value::Null => out.push_str("null"),
@@ -149,8 +146,12 @@ impl Generator {
                 out.push(']');
             }
             Value::Object(pairs) => {
+                let mut canonical_pairs = BTreeMap::new();
+                for (key, value) in pairs {
+                    canonical_pairs.insert(key, value);
+                }
                 out.push('{');
-                for (i, (key, value)) in pairs.iter().enumerate() {
+                for (i, (key, value)) in canonical_pairs.into_iter().enumerate() {
                     if i > 0 {
                         out.push_str(", ");
                     }
