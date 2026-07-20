@@ -2,6 +2,11 @@
  * ACL Lexer - Tokenizer
  */
 
+const {
+  DIAGNOSTIC_CODES,
+  ParseError,
+} = require('../diagnostic/ParseError.js');
+
 class Lexer {
   constructor(input, maxTokenBytes = Number.POSITIVE_INFINITY) {
     this.input = input;
@@ -13,14 +18,15 @@ class Lexer {
   }
 
   current() {
-    return this.input[this.pos];
+    const codePoint = this.input.codePointAt(this.pos);
+    return codePoint === undefined ? undefined : String.fromCodePoint(codePoint);
   }
 
   advance() {
     if (this.pos < this.input.length) {
-      const c = this.input[this.pos];
-      this.pos++;
-      this.offset++;
+      const c = this.current();
+      this.pos += c.length;
+      this.offset += Buffer.byteLength(c, 'utf8');
       if (c === '\n') {
         this.line++;
         this.column = 1;
@@ -243,11 +249,11 @@ class Lexer {
 
       const tokenBytes = Buffer.byteLength(this.input.slice(startPos, this.pos), 'utf8');
       if (tokenBytes > this.maxTokenBytes) {
-        throw {
-          message: `ACL parse limit exceeded: token is longer than ${this.maxTokenBytes} bytes`,
-          line: start.line,
-          column: start.column,
-        };
+        throw new ParseError(
+          DIAGNOSTIC_CODES.TOKEN_BYTES_LIMIT,
+          `ACL parse limit exceeded: token is longer than ${this.maxTokenBytes} bytes`,
+          { start, end: this.startLocation() }
+        );
       }
     }
 

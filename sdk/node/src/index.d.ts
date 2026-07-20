@@ -6,6 +6,7 @@
 export interface Location {
   line: number;
   column: number;
+  /** Zero-based UTF-8 byte offset from the start of the document. */
   offset: number;
 }
 
@@ -49,10 +50,30 @@ export interface Document {
   blocks: Block[];
 }
 
-export interface ParseError {
-  message: string;
-  line: number;
-  column: number;
+export type DiagnosticCode =
+  | 'acl.limit.document_bytes'
+  | 'acl.limit.token_bytes'
+  | 'acl.limit.nesting_depth'
+  | 'acl.limit.collection_items'
+  | 'acl.parse.unexpected_token'
+  | 'acl.parse.expected_token'
+  | 'acl.parse.unexpected_eof';
+
+export const DIAGNOSTIC_CODES: Readonly<{
+  DOCUMENT_BYTES_LIMIT: 'acl.limit.document_bytes';
+  TOKEN_BYTES_LIMIT: 'acl.limit.token_bytes';
+  NESTING_DEPTH_LIMIT: 'acl.limit.nesting_depth';
+  COLLECTION_ITEMS_LIMIT: 'acl.limit.collection_items';
+  UNEXPECTED_TOKEN: 'acl.parse.unexpected_token';
+  EXPECTED_TOKEN: 'acl.parse.expected_token';
+  UNEXPECTED_EOF: 'acl.parse.unexpected_eof';
+}>;
+
+export class ParseError extends Error {
+  readonly code: DiagnosticCode;
+  readonly span: Span;
+  readonly line: number;
+  readonly column: number;
 }
 
 export interface ParseLimits {
@@ -109,6 +130,8 @@ export class Parser {
 export default {
   parse,
   DEFAULT_PARSE_LIMITS,
+  DIAGNOSTIC_CODES,
+  ParseError,
   generate,
   generateHCL,
   string,

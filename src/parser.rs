@@ -3,29 +3,12 @@
 // ============================================================================
 
 use crate::ast::{Block, Document, Value};
-use crate::lexer::{Lexer, Token, TokenWithSpan};
+use crate::diagnostic::DiagnosticCode;
+use crate::lexer::{Lexer, Location, Span, Token, TokenWithSpan};
 use crate::parse_limits::{nesting_limit_error, ParseLimits, DEFAULT_PARSE_LIMITS};
 use std::collections::HashMap;
 
-/// Parse error
-#[derive(Debug, Clone)]
-pub struct ParseError {
-    pub message: String,
-    pub line: usize,
-    pub column: usize,
-}
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Parse error at line {}, column {}: {}",
-            self.line, self.column, self.message
-        )
-    }
-}
-
-impl std::error::Error for ParseError {}
+pub use crate::diagnostic::ParseError;
 
 /// ACL Parser
 pub struct Parser<'a> {
@@ -53,14 +36,18 @@ impl<'a> Parser<'a> {
                 )],
                 pos: 0,
                 limits,
-                initial_error: Some(ParseError {
-                    message: format!(
+                initial_error: Some(ParseError::at(
+                    DiagnosticCode::DocumentBytesLimit,
+                    format!(
                         "ACL parse limit exceeded: document is larger than {} bytes",
                         limits.max_document_bytes
                     ),
-                    line: 1,
-                    column: 1,
-                }),
+                    Location {
+                        line: 1,
+                        column: 1,
+                        offset: 0,
+                    },
+                )),
                 block_depth: 0,
                 _marker: std::marker::PhantomData,
             };
@@ -68,13 +55,15 @@ impl<'a> Parser<'a> {
 
         let mut lexer = Lexer::with_max_token_bytes(input, limits.max_token_bytes);
         let tokens = lexer.tokenize();
-        let initial_error = lexer.token_limit_location().map(|location| ParseError {
-            message: format!(
-                "ACL parse limit exceeded: token is longer than {} bytes",
-                limits.max_token_bytes
-            ),
-            line: location.line,
-            column: location.column,
+        let initial_error = lexer.token_limit_span().map(|span| {
+            ParseError::new(
+                DiagnosticCode::TokenBytesLimit,
+                format!(
+                    "ACL parse limit exceeded: token is longer than {} bytes",
+                    limits.max_token_bytes
+                ),
+                span,
+            )
         });
         let initial_error =
             initial_error.or_else(|| nesting_limit_error(&tokens, limits.max_nesting_depth));
@@ -95,6 +84,19 @@ impl<'a> Parser<'a> {
 
     fn peek(&self, offset: usize) -> Option<&TokenWithSpan> {
         self.tokens.get(self.pos + offset)
+    }
+
+    fn eof_span(&self) -> Span {
+        self.tokens
+            .last()
+            .map(|token| token.span)
+            .unwrap_or_else(|| {
+                Span::point(Location {
+                    line: 1,
+                    column: 1,
+                    offset: 0,
+                })
+            })
     }
 
     fn advance(&mut self) {
@@ -127,10 +129,10 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            let location = t.span.start;
+            let span = t.span;
             match &t.token {
                 Token::Ident(name) => {
-                    self.ensure_collection_capacity(doc.blocks.len(), location)?;
+                    self.ensure_collection_capacity(doc.blocks.len(), span)?;
                     // Check if this is a bare attribute (name = value) or a block
                     let name = name.clone();
                     let is_bare_attr = {
@@ -159,11 +161,11 @@ impl<'a> Parser<'a> {
                     }
                 }
                 _ => {
-                    return Err(ParseError {
-                        message: format!("Unexpected token: {:?}", t.token),
-                        line: t.span.start.line,
-                        column: t.span.start.column,
-                    });
+                    return Err(ParseError::new(
+                        DiagnosticCode::UnexpectedToken,
+                        format!("Unexpected token: {}", t.token.kind_name()),
+                        t.span,
+                    ));
                 }
             }
             self.skip_newlines();
@@ -172,39 +174,32 @@ impl<'a> Parser<'a> {
         Ok(doc)
     }
 
-    fn ensure_collection_capacity(
-        &self,
-        current_len: usize,
-        location: crate::lexer::Location,
-    ) -> Result<(), ParseError> {
+    fn ensure_collection_capacity(&self, current_len: usize, span: Span) -> Result<(), ParseError> {
         if current_len >= self.limits.max_collection_items {
-            return Err(ParseError {
-                message: format!(
+            return Err(ParseError::new(
+                DiagnosticCode::CollectionItemsLimit,
+                format!(
                     "ACL parse limit exceeded: collection has more than {} items",
                     self.limits.max_collection_items
                 ),
-                line: location.line,
-                column: location.column,
-            });
+                span,
+            ));
         }
         Ok(())
     }
 
     /// Parse a single block
     fn parse_block(&mut self) -> Result<Block, ParseError> {
-        let location = self
-            .current()
-            .map(|token| token.span.start)
-            .unwrap_or_default();
+        let span = self.current().map(|token| token.span).unwrap_or_default();
         if self.block_depth >= self.limits.max_nesting_depth {
-            return Err(ParseError {
-                message: format!(
+            return Err(ParseError::new(
+                DiagnosticCode::NestingDepthLimit,
+                format!(
                     "ACL parse limit exceeded: nesting depth is greater than {}",
                     self.limits.max_nesting_depth
                 ),
-                line: location.line,
-                column: location.column,
-            });
+                span,
+            ));
         }
 
         self.block_depth += 1;
@@ -224,18 +219,18 @@ impl<'a> Parser<'a> {
                 name
             }
             Some(t) => {
-                return Err(ParseError {
-                    message: format!("Expected block name, found {:?}", t.token),
-                    line: t.span.start.line,
-                    column: t.span.start.column,
-                });
+                return Err(ParseError::new(
+                    DiagnosticCode::ExpectedToken,
+                    format!("Expected block name, found {}", t.token.kind_name()),
+                    t.span,
+                ));
             }
             None => {
-                return Err(ParseError {
-                    message: "Unexpected end of input".to_string(),
-                    line: 0,
-                    column: 0,
-                });
+                return Err(ParseError::new(
+                    DiagnosticCode::UnexpectedEof,
+                    "Unexpected end of input",
+                    self.eof_span(),
+                ));
             }
         };
 
@@ -244,9 +239,9 @@ impl<'a> Parser<'a> {
         while let Some(t) = self.current() {
             match &t.token {
                 Token::String(s) => {
-                    let location = t.span.start;
+                    let span = t.span;
                     let label = s.clone();
-                    self.ensure_collection_capacity(labels.len(), location)?;
+                    self.ensure_collection_capacity(labels.len(), span)?;
                     labels.push(label);
                     self.advance();
                 }
@@ -297,7 +292,7 @@ impl<'a> Parser<'a> {
                 }
                 Token::Ident(name) => {
                     // Check if this is a nested block or attribute
-                    let location = t.span.start;
+                    let span = t.span;
                     let name = name.clone();
                     let after_ident = self.peek(1);
                     let after_after = self.peek(2);
@@ -306,7 +301,7 @@ impl<'a> Parser<'a> {
                         match &next.token {
                             Token::Equal | Token::Colon => {
                                 // It's an attribute: name = value or name : value
-                                self.ensure_collection_capacity(item_count, location)?;
+                                self.ensure_collection_capacity(item_count, span)?;
                                 self.advance(); // consume the identifier
                                 let attr = self.parse_attribute(name)?;
                                 attributes.insert(attr.0, attr.1);
@@ -314,14 +309,14 @@ impl<'a> Parser<'a> {
                             }
                             Token::String(_) => {
                                 // It's a block with a string label, parse as nested block
-                                self.ensure_collection_capacity(item_count, location)?;
+                                self.ensure_collection_capacity(item_count, span)?;
                                 let block = self.parse_block()?;
                                 blocks.push(block);
                                 item_count += 1;
                             }
                             Token::LeftBrace => {
                                 // Nested block with no labels
-                                self.ensure_collection_capacity(item_count, location)?;
+                                self.ensure_collection_capacity(item_count, span)?;
                                 self.advance(); // consume the block type name
                                 let block = self.parse_nested_block(name.clone())?;
                                 blocks.push(block);
@@ -334,14 +329,14 @@ impl<'a> Parser<'a> {
                                     match &after.token {
                                         Token::LeftBrace | Token::String(_) => {
                                             // It's a nested block
-                                            self.ensure_collection_capacity(item_count, location)?;
+                                            self.ensure_collection_capacity(item_count, span)?;
                                             let block = self.parse_block()?;
                                             blocks.push(block);
                                             item_count += 1;
                                         }
                                         Token::Equal | Token::Colon => {
                                             // It's an attribute
-                                            self.ensure_collection_capacity(item_count, location)?;
+                                            self.ensure_collection_capacity(item_count, span)?;
                                             self.advance(); // consume the identifier
                                             let attr = self.parse_attribute(name)?;
                                             attributes.insert(attr.0, attr.1);
@@ -349,7 +344,7 @@ impl<'a> Parser<'a> {
                                         }
                                         _ => {
                                             // Try as nested block
-                                            self.ensure_collection_capacity(item_count, location)?;
+                                            self.ensure_collection_capacity(item_count, span)?;
                                             let block = self.parse_block()?;
                                             blocks.push(block);
                                             item_count += 1;
@@ -390,9 +385,9 @@ impl<'a> Parser<'a> {
         while let Some(t) = self.current() {
             match &t.token {
                 Token::String(s) => {
-                    let location = t.span.start;
+                    let span = t.span;
                     let label = s.clone();
-                    self.ensure_collection_capacity(labels.len(), location)?;
+                    self.ensure_collection_capacity(labels.len(), span)?;
                     labels.push(label);
                     self.advance();
                 }
@@ -418,11 +413,11 @@ impl<'a> Parser<'a> {
         let token = self.current().cloned();
         if let Some(t) = token {
             if !matches!(t.token, Token::Equal | Token::Colon) {
-                return Err(ParseError {
-                    message: format!("Expected '=' or ':', found {:?}", t.token),
-                    line: t.span.start.line,
-                    column: t.span.start.column,
-                });
+                return Err(ParseError::new(
+                    DiagnosticCode::ExpectedToken,
+                    format!("Expected '=' or ':', found {}", t.token.kind_name()),
+                    t.span,
+                ));
             }
             self.advance();
         }
@@ -435,10 +430,13 @@ impl<'a> Parser<'a> {
 
     /// Parse a value
     fn parse_value(&mut self) -> Result<Value, ParseError> {
-        let token = self.current().ok_or_else(|| ParseError {
-            message: "Unexpected end of input".to_string(),
-            line: 0,
-            column: 0,
+        let eof_span = self.eof_span();
+        let token = self.current().ok_or_else(|| {
+            ParseError::new(
+                DiagnosticCode::UnexpectedEof,
+                "Unexpected end of input",
+                eof_span,
+            )
         })?;
 
         match token.token.clone() {
@@ -516,11 +514,19 @@ impl<'a> Parser<'a> {
 
                 Ok(Value::String(name))
             }
-            _ => Err(ParseError {
-                message: format!("Unexpected token in value position: {:?}", token.token),
-                line: token.span.start.line,
-                column: token.span.start.column,
-            }),
+            Token::Eof => Err(ParseError::new(
+                DiagnosticCode::UnexpectedEof,
+                "Unexpected end of input",
+                token.span,
+            )),
+            _ => Err(ParseError::new(
+                DiagnosticCode::UnexpectedToken,
+                format!(
+                    "Unexpected token in value position: {}",
+                    token.token.kind_name()
+                ),
+                token.span,
+            )),
         }
     }
 
@@ -543,8 +549,8 @@ impl<'a> Parser<'a> {
                     self.advance();
                 }
                 _ => {
-                    let location = t.span.start;
-                    self.ensure_collection_capacity(items.len(), location)?;
+                    let span = t.span;
+                    self.ensure_collection_capacity(items.len(), span)?;
                     let value = self.parse_value()?;
                     items.push(value);
                     self.skip_newlines();
@@ -583,11 +589,8 @@ impl<'a> Parser<'a> {
         }
 
         loop {
-            let location = self
-                .current()
-                .map(|token| token.span.start)
-                .unwrap_or_default();
-            self.ensure_collection_capacity(args.len(), location)?;
+            let span = self.current().map(|token| token.span).unwrap_or_default();
+            self.ensure_collection_capacity(args.len(), span)?;
             let value = self.parse_value()?;
             args.push(value);
             self.skip_newlines();
@@ -602,18 +605,18 @@ impl<'a> Parser<'a> {
                     break;
                 }
                 Some(t) => {
-                    return Err(ParseError {
-                        message: format!("Expected ',' or ')', found {:?}", t.token),
-                        line: t.span.start.line,
-                        column: t.span.start.column,
-                    });
+                    return Err(ParseError::new(
+                        DiagnosticCode::ExpectedToken,
+                        format!("Expected ',' or ')', found {}", t.token.kind_name()),
+                        t.span,
+                    ));
                 }
                 None => {
-                    return Err(ParseError {
-                        message: "Unexpected end of input in function call".to_string(),
-                        line: 0,
-                        column: 0,
-                    });
+                    return Err(ParseError::new(
+                        DiagnosticCode::UnexpectedEof,
+                        "Unexpected end of input in function call",
+                        self.eof_span(),
+                    ));
                 }
             }
         }
@@ -807,11 +810,15 @@ mod tests {
 
     #[test]
     fn test_parse_error_display() {
-        let err = ParseError {
-            message: "test error".to_string(),
-            line: 10,
-            column: 5,
-        };
+        let err = ParseError::new(
+            DiagnosticCode::UnexpectedToken,
+            "test error",
+            Span::point(Location {
+                line: 10,
+                column: 5,
+                offset: 42,
+            }),
+        );
         let display = format!("{}", err);
         assert!(display.contains("line 10"));
         assert!(display.contains("column 5"));
@@ -820,11 +827,15 @@ mod tests {
 
     #[test]
     fn test_parse_error_trait() {
-        let err = ParseError {
-            message: "test".to_string(),
-            line: 1,
-            column: 1,
-        };
+        let err = ParseError::new(
+            DiagnosticCode::UnexpectedToken,
+            "test",
+            Span::point(Location {
+                line: 1,
+                column: 1,
+                offset: 0,
+            }),
+        );
         let _ = err.clone();
     }
 

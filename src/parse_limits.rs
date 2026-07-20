@@ -1,3 +1,4 @@
+use crate::diagnostic::DiagnosticCode;
 use crate::lexer::{Token, TokenWithSpan};
 use crate::parser::ParseError;
 
@@ -39,13 +40,13 @@ pub(crate) fn nesting_limit_error(
             Token::LeftBrace | Token::LeftBracket | Token::LeftParen => {
                 depth = depth.saturating_add(1);
                 if depth > max_nesting_depth {
-                    return Some(ParseError {
-                        message: format!(
+                    return Some(ParseError::new(
+                        DiagnosticCode::NestingDepthLimit,
+                        format!(
                             "ACL parse limit exceeded: nesting depth is greater than {max_nesting_depth}"
                         ),
-                        line: token.span.start.line,
-                        column: token.span.start.column,
-                    });
+                        token.span,
+                    ));
                 }
             }
             Token::RightBrace | Token::RightBracket | Token::RightParen => {

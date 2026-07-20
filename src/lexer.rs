@@ -35,19 +35,56 @@ pub enum Token {
     Eof,
 }
 
+impl Token {
+    /// Return a stable token kind without exposing the token's source value.
+    pub const fn kind_name(&self) -> &'static str {
+        match self {
+            Self::LeftBrace => "LeftBrace",
+            Self::RightBrace => "RightBrace",
+            Self::LeftBracket => "LeftBracket",
+            Self::RightBracket => "RightBracket",
+            Self::LeftParen => "LeftParen",
+            Self::RightParen => "RightParen",
+            Self::Equal => "Equal",
+            Self::PlusEqual => "PlusEqual",
+            Self::Colon => "Colon",
+            Self::Comma => "Comma",
+            Self::Comment => "Comment",
+            Self::Newline => "Newline",
+            Self::Ident(_) => "Ident",
+            Self::String(_) => "String",
+            Self::Number(_) => "Number",
+            Self::True => "True",
+            Self::False => "False",
+            Self::Null => "Null",
+            Self::Eof => "Eof",
+        }
+    }
+}
+
 /// A location in the source code
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Location {
     pub line: usize,
     pub column: usize,
+    /// Zero-based UTF-8 byte offset from the start of the document.
     pub offset: usize,
 }
 
 /// A span of source code
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Span {
     pub start: Location,
     pub end: Location,
+}
+
+impl Span {
+    pub const fn point(location: Location) -> Self {
+        Self {
+            start: location,
+            end: location,
+        }
+    }
 }
 
 /// A token with its source location
@@ -73,7 +110,7 @@ pub struct Lexer<'a> {
     byte_offsets: Vec<usize>,
     pos: usize,
     max_token_bytes: Option<usize>,
-    token_limit_location: Option<Location>,
+    token_limit_span: Option<Span>,
     pub location: Location,
 }
 
@@ -99,7 +136,7 @@ impl<'a> Lexer<'a> {
             byte_offsets,
             pos: 0,
             max_token_bytes,
-            token_limit_location: None,
+            token_limit_span: None,
             location: Location {
                 line: 1,
                 column: 1,
@@ -108,8 +145,8 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub(crate) fn token_limit_location(&self) -> Option<Location> {
-        self.token_limit_location
+    pub(crate) fn token_limit_span(&self) -> Option<Span> {
+        self.token_limit_span
     }
 
     fn current(&self) -> Option<char> {
@@ -120,7 +157,7 @@ impl<'a> Lexer<'a> {
         if self.pos < self.chars.len() {
             let c = self.chars[self.pos];
             self.pos += 1;
-            self.location.offset += 1;
+            self.location.offset = self.byte_offsets[self.pos];
             if c == '\n' {
                 self.location.line += 1;
                 self.location.column = 1;
@@ -237,7 +274,10 @@ impl<'a> Lexer<'a> {
                 let token_bytes =
                     self.byte_offsets[self.pos].saturating_sub(self.byte_offsets[start_pos]);
                 if token_bytes > max_token_bytes {
-                    self.token_limit_location = Some(start);
+                    self.token_limit_span = Some(Span {
+                        start,
+                        end: self.location,
+                    });
                     break;
                 }
             }
