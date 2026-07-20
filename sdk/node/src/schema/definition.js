@@ -63,7 +63,7 @@ function normalizeAttribute(attribute, path, ancestors) {
 function normalizeBlock(block, path, ancestors) {
   assertRecord(block, path);
   rejectCycle(block, path, ancestors);
-  assertKeys(block, ['occurrences', 'labels', 'body'], path);
+  assertKeys(block, ['occurrences', 'labels', 'body', 'unordered'], path);
   const normalized = {
     occurrences: normalizeCardinality(
       block.occurrences ?? { min: 0, max: null },
@@ -73,6 +73,7 @@ function normalizeBlock(block, path, ancestors) {
       block.labels ?? { min: 0, max: 0 },
       `${path}.labels`
     ),
+    unordered: optionalBoolean(block.unordered, false, `${path}.unordered`),
     body: normalizeSchema(block.body ?? {}, `${path}.body`, ancestors),
   };
   ancestors.delete(block);

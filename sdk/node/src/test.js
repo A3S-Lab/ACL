@@ -12,7 +12,9 @@ const {
   DEFAULT_PARSE_LIMITS,
   SCHEMA_DIAGNOSTIC_CODES,
   canonicalBytes,
+  canonicalBytesWithSchema,
   canonicalDigest,
+  canonicalDigestWithSchema,
   collectDiagnostics,
   validateDocument,
   parse,
@@ -105,6 +107,15 @@ function canonicalDigestFixture() {
   );
 }
 
+function schemaBlockOrderFixture() {
+  return JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/canonical/schema-block-order-cases.json'),
+      'utf8'
+    )
+  );
+}
+
 console.log('=== Test Canonical Digests ===');
 assert(CANONICAL_DIGEST_ALGORITHM === 'sha256', 'canonical digest algorithm should be stable');
 for (const testCase of canonicalDigestFixture()) {
@@ -124,6 +135,65 @@ for (const testCase of canonicalDigestFixture()) {
 const firstListDigest = canonicalDigest(parse('value = [1, 2]'));
 const secondListDigest = canonicalDigest(parse('value = [2, 1]'));
 assert(firstListDigest !== secondListDigest, 'canonical digests should preserve list order');
+
+const schemaOrderFixture = schemaBlockOrderFixture();
+const orderingSchema = schemaOrderFixture.schema;
+for (const testCase of schemaOrderFixture.equivalentCases) {
+  assert(
+    canonicalDigest(parse(testCase.input))
+      !== canonicalDigest(parse(testCase.equivalentInput)),
+    `${testCase.name} should remain ordered without schema normalization`
+  );
+  for (const input of [testCase.input, testCase.equivalentInput]) {
+    const document = parse(input);
+    const originalBytes = canonicalBytes(document).toString('utf8');
+    const report = validateDocument(document, orderingSchema);
+    assert(
+      report.diagnostics.length === 0 && !report.truncated,
+      `${testCase.name} should pass schema admission`
+    );
+    assert(
+      canonicalBytesWithSchema(document, orderingSchema).toString('utf8')
+        === testCase.canonical,
+      `${testCase.name} should have stable schema-normalized bytes`
+    );
+    assert(
+      canonicalDigestWithSchema(document, orderingSchema) === testCase.digest,
+      `${testCase.name} should have a stable schema-normalized digest`
+    );
+    assert(
+      canonicalBytes(document).toString('utf8') === originalBytes,
+      `${testCase.name} schema normalization should not mutate the document`
+    );
+  }
+}
+for (const testCase of schemaOrderFixture.orderedCases) {
+  assert(
+    canonicalDigestWithSchema(parse(testCase.firstInput), orderingSchema)
+      !== canonicalDigestWithSchema(parse(testCase.secondInput), orderingSchema),
+    `${testCase.name} should remain order-sensitive`
+  );
+}
+const adversarialProviders = (indexes) => [
+  'version = 1',
+  ...indexes.map((index) =>
+    `provider "${String(index).padStart(4, '0')}" { enabled = true }`
+  ),
+].join('\n');
+const ascendingProviderIndexes = Array.from(
+  { length: schemaOrderFixture.adversarialCount },
+  (_, index) => index
+);
+assert(
+  canonicalDigestWithSchema(
+    parse(adversarialProviders(ascendingProviderIndexes)),
+    orderingSchema
+  ) === canonicalDigestWithSchema(
+    parse(adversarialProviders([...ascendingProviderIndexes].reverse())),
+    orderingSchema
+  ),
+  'adversarial unordered block repetition should normalize deterministically'
+);
 assert(
   canonicalDigest(parse('value = "é"')) !== canonicalDigest(parse('value = "e\u0301"')),
   'canonical digests should preserve Unicode scalar sequences without normalization'
@@ -374,6 +444,20 @@ try {
   assert(
     error instanceof TypeError && error.message.includes('occurrences'),
     'invalid schema cardinality should fail before validation'
+  );
+}
+
+try {
+  validateDocument(parse(''), {
+    blocks: {
+      invalid: { unordered: 'yes' },
+    },
+  });
+  throw new Error('Expected invalid unordered flag to fail');
+} catch (error) {
+  assert(
+    error instanceof TypeError && error.message.includes('unordered'),
+    'invalid unordered flags should fail before validation'
   );
 }
 
