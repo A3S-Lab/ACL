@@ -14,6 +14,7 @@ const DEFAULT_PARSE_LIMITS = Object.freeze({
   maxNestingDepth: 64,
   maxCollectionItems: 10_000,
   maxTokenBytes: 256 * 1024,
+  maxDiagnostics: 100,
 });
 
 function normalizeParseLimits(limits) {
@@ -64,6 +65,23 @@ class Parser {
   }
 
   parse(input, limits) {
+    this.prepare(input, limits);
+    return this.parseDocument();
+  }
+
+  collectDiagnostics(input, limits) {
+    const report = { diagnostics: [], truncated: false };
+    try {
+      this.prepare(input, limits);
+    } catch (error) {
+      if (!(error instanceof ParseError)) throw error;
+      this.recordDiagnostic(report, error);
+      return report;
+    }
+    return this.collectDocumentDiagnostics(report);
+  }
+
+  prepare(input, limits) {
     this.limits = normalizeParseLimits(limits);
     if (Buffer.byteLength(input, 'utf8') > this.limits.maxDocumentBytes) {
       throw new ParseError(
@@ -78,7 +96,6 @@ class Parser {
     this.pos = 0;
     this.blockDepth = 0;
     this.validateNesting();
-    return this.parseDocument();
   }
 
   validateNesting() {
@@ -116,30 +133,74 @@ class Parser {
     while (this.current()?.type !== 'Eof') {
       this.skipNewlines();
       if (this.current()?.type === 'Eof') break;
-
-      if (this.current()?.type === 'Ident') {
-        this.ensureCollectionCapacity(blocks.length);
-        // Check if this is a bare attribute (name = value) or a block
-        const next = this.peek();
-        if (next?.type === 'Equal' || next?.type === 'Colon') {
-          const block = this.parseBareAttribute();
-          blocks.push(block);
-        } else {
-          const block = this.parseBlock();
-          blocks.push(block);
-        }
-      } else {
-        const err = this.current();
-        throw new ParseError(
-          DIAGNOSTIC_CODES.UNEXPECTED_TOKEN,
-          `Unexpected token: ${err?.type ?? 'Eof'}`,
-          err?.span ?? this.eofSpan()
-        );
-      }
+      this.parseDocumentItem(blocks);
       this.skipNewlines();
     }
 
     return { blocks };
+  }
+
+  collectDocumentDiagnostics(report) {
+    const blocks = [];
+    this.skipNewlines();
+
+    while (this.current()?.type !== 'Eof') {
+      const itemStart = this.pos;
+      try {
+        this.parseDocumentItem(blocks);
+        this.skipNewlines();
+      } catch (error) {
+        if (!(error instanceof ParseError)) throw error;
+        const isLimit = error.code.startsWith('acl.limit.');
+        if (!this.recordDiagnostic(report, error) || isLimit) break;
+        this.recoverAfterError(itemStart, error.span.start.line);
+      }
+    }
+
+    return report;
+  }
+
+  parseDocumentItem(blocks) {
+    if (this.current()?.type === 'Ident') {
+      this.ensureCollectionCapacity(blocks.length);
+      const next = this.peek();
+      if (next?.type === 'Equal' || next?.type === 'Colon') {
+        blocks.push(this.parseBareAttribute());
+      } else {
+        blocks.push(this.parseBlock());
+      }
+      return;
+    }
+
+    const error = this.current();
+    throw new ParseError(
+      DIAGNOSTIC_CODES.UNEXPECTED_TOKEN,
+      `Unexpected token: ${error?.type ?? 'Eof'}`,
+      error?.span ?? this.eofSpan()
+    );
+  }
+
+  recordDiagnostic(report, error) {
+    if (report.diagnostics.length >= this.limits.maxDiagnostics) {
+      report.truncated = true;
+      return false;
+    }
+    report.diagnostics.push(error);
+    return true;
+  }
+
+  recoverAfterError(itemStart, errorLine) {
+    if (this.pos === itemStart && this.current()?.type !== 'Eof') {
+      this.advance();
+    }
+    while (
+      this.current()?.type !== 'Eof'
+      && this.current()?.span.start.line <= errorLine
+    ) {
+      this.advance();
+    }
+    this.blockDepth = 0;
+    this.skipNewlines();
   }
 
   parseBareAttribute() {
@@ -442,4 +503,9 @@ function parse(input, limits) {
   return parser.parse(input, limits);
 }
 
-module.exports = { DEFAULT_PARSE_LIMITS, Parser, parse };
+function collectDiagnostics(input, limits) {
+  const parser = new Parser([]);
+  return parser.collectDiagnostics(input, limits);
+}
+
+module.exports = { collectDiagnostics, DEFAULT_PARSE_LIMITS, Parser, parse };

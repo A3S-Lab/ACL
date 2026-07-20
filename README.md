@@ -14,6 +14,8 @@ A lightweight, typed configuration language for agent configurations. ACL is des
   canonical UTF-8 plus lowercase, algorithm-prefixed SHA-256 digests
 - **Structured Diagnostics**: Stable cross-SDK codes, complete source spans,
   UTF-8 byte offsets, and messages that never echo source token values
+- **Bounded Multi-Diagnostics**: Deterministic line recovery, configurable
+  diagnostic budgets, and explicit truncation without changing fail-fast parsing
 - **Multi-platform SDK**: Rust crate and Node.js/TypeScript SDK
 
 ## Syntax
@@ -97,6 +99,7 @@ untrusted input. Defaults are identical in Rust and Node.js:
 | Structural nesting depth | 64 |
 | Items in one document or collection | 10,000 |
 | UTF-8 source token size | 256 KiB |
+| Collected diagnostics | 100 |
 
 Use explicit limits at API admission boundaries:
 
@@ -110,6 +113,7 @@ let doc = parse_with_limits(
         max_nesting_depth: 32,
         max_collection_items: 1_000,
         max_token_bytes: 16 * 1024,
+        max_diagnostics: 20,
     },
 )?;
 ```
@@ -120,6 +124,7 @@ const doc = parse(input, {
   maxNestingDepth: 32,
   maxCollectionItems: 1_000,
   maxTokenBytes: 16 * 1024,
+  maxDiagnostics: 20,
 });
 ```
 
@@ -172,6 +177,35 @@ try {
 Diagnostics identify token kinds but never include token values or source
 snippets. Callers should preserve that boundary and must not attach the
 untrusted ACL document to API errors or logs.
+
+The `parse` APIs remain fail-fast. CLI and editor integrations can collect
+multiple errors without constructing a partial AST:
+
+```rust
+use a3s_acl::{collect_diagnostics_with_limits, ParseLimits};
+
+let report = collect_diagnostics_with_limits(
+    "first = ]\nsecond = ]",
+    ParseLimits {
+        max_diagnostics: 20,
+        ..ParseLimits::default()
+    },
+);
+```
+
+```typescript
+import {collectDiagnostics} from '@a3s-lab/acl';
+
+const report = collectDiagnostics('first = ]\nsecond = ]', {
+  maxDiagnostics: 20,
+});
+```
+
+After a syntax error, collection resumes at the next source line. Resource-limit
+diagnostics remain fatal and appear at most once. The collector stores no more
+than `max_diagnostics` / `maxDiagnostics` errors and sets `truncated` only after
+observing an additional error beyond that budget. A zero budget therefore
+returns no diagnostics and sets `truncated` when the input is invalid.
 
 ### Generate
 

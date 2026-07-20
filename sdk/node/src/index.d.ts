@@ -90,12 +90,19 @@ export interface ParseLimits {
   maxNestingDepth: number;
   maxCollectionItems: number;
   maxTokenBytes: number;
+  maxDiagnostics: number;
+}
+
+export interface DiagnosticReport {
+  readonly diagnostics: ParseError[];
+  readonly truncated: boolean;
 }
 
 // Core API
 export const DEFAULT_PARSE_LIMITS: Readonly<ParseLimits>;
 export const CANONICAL_DIGEST_ALGORITHM: 'sha256';
 export function parse(input: string, limits?: Partial<ParseLimits>): Document;
+export function collectDiagnostics(input: string, limits?: Partial<ParseLimits>): DiagnosticReport;
 export function generate(doc: Document): string;
 export function canonicalBytes(doc: Document): Uint8Array;
 export function canonicalDigest(doc: Document): string;
@@ -135,11 +142,13 @@ export class Lexer {
 export class Parser {
   constructor();
   parse(input: string, limits?: Partial<ParseLimits>): Document;
+  collectDiagnostics(input: string, limits?: Partial<ParseLimits>): DiagnosticReport;
 }
 
 // Default export with all members
 export default {
   parse,
+  collectDiagnostics,
   DEFAULT_PARSE_LIMITS,
   DIAGNOSTIC_CODES,
   ParseError,

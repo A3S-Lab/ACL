@@ -12,6 +12,7 @@ const {
   DEFAULT_PARSE_LIMITS,
   canonicalBytes,
   canonicalDigest,
+  collectDiagnostics,
   parse,
   generate,
   string,
@@ -70,6 +71,15 @@ function diagnosticFixture() {
   return JSON.parse(
     fs.readFileSync(
       path.join(__dirname, '../../../fixtures/diagnostics/cases.json'),
+      'utf8'
+    )
+  );
+}
+
+function multiDiagnosticFixture() {
+  return JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/diagnostics/multi-cases.json'),
       'utf8'
     )
   );
@@ -183,13 +193,52 @@ for (const testCase of diagnosticFixture()) {
   }
 }
 
+console.log('=== Test Bounded Multi-Diagnostics ===');
+for (const testCase of multiDiagnosticFixture()) {
+  const report = collectDiagnostics(testCase.input, testCase.limits);
+  assert(
+    report.truncated === testCase.expected.truncated,
+    `${testCase.name} should have a stable truncation flag`
+  );
+  assert(
+    report.diagnostics.length === testCase.expected.diagnostics.length,
+    `${testCase.name} should have a bounded diagnostic count`
+  );
+  for (const [index, error] of report.diagnostics.entries()) {
+    const expected = testCase.expected.diagnostics[index];
+    assert(error instanceof ParseError, `${testCase.name} diagnostic ${index} should be ParseError`);
+    assert(error.code === expected.code, `${testCase.name} diagnostic ${index} should have a stable code`);
+    assert(error.message === expected.message, `${testCase.name} diagnostic ${index} should have a stable message`);
+    assert(
+      JSON.stringify(error.span) === JSON.stringify(expected.span),
+      `${testCase.name} diagnostic ${index} should have a byte-accurate span`
+    );
+    assert(!error.message.includes('secret'), `${testCase.name} diagnostic ${index} should redact source values`);
+  }
+}
+
+const adversarialReport = collectDiagnostics(
+  Array.from({ length: 1_000 }, (_, index) => `invalid_${index} = ]`).join('\n'),
+  { maxDiagnostics: 3 }
+);
+assert(adversarialReport.diagnostics.length === 3, 'adversarial diagnostics should stay bounded');
+assert(adversarialReport.truncated, 'adversarial diagnostics should report truncation');
+
+const exactBudgetReport = collectDiagnostics(
+  'first = ]\nsecond = ]\nthird = ]',
+  { maxDiagnostics: 3 }
+);
+assert(exactBudgetReport.diagnostics.length === 3, 'exact diagnostic budget should be retained');
+assert(!exactBudgetReport.truncated, 'exact diagnostic budget should not report truncation');
+
 console.log('=== Test Bounded Parsing ===');
 assert(Object.isFrozen(DEFAULT_PARSE_LIMITS), 'default parse limits should be immutable');
 assert(
   DEFAULT_PARSE_LIMITS.maxDocumentBytes === 1024 * 1024
     && DEFAULT_PARSE_LIMITS.maxNestingDepth === 64
     && DEFAULT_PARSE_LIMITS.maxCollectionItems === 10_000
-    && DEFAULT_PARSE_LIMITS.maxTokenBytes === 256 * 1024,
+    && DEFAULT_PARSE_LIMITS.maxTokenBytes === 256 * 1024
+    && DEFAULT_PARSE_LIMITS.maxDiagnostics === 100,
   'Rust and Node.js should publish the documented default limits'
 );
 const tokenLimitFixture = limitFixture('token.acl');
@@ -261,6 +310,16 @@ try {
   assert(
     error instanceof TypeError && error.message.includes('maxDocumentBytes'),
     'invalid JavaScript limits should fail before parsing'
+  );
+}
+
+try {
+  collectDiagnostics('name = ]', { maxDiagnostics: -1 });
+  throw new Error('Expected invalid diagnostic limit to fail');
+} catch (error) {
+  assert(
+    error instanceof TypeError && error.message.includes('maxDiagnostics'),
+    'invalid JavaScript diagnostic limits should fail before parsing'
   );
 }
 
