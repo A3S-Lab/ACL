@@ -1,0 +1,10 @@
+strings {
+  boolean_keyword = "true"
+  decimal = "1.88"
+  empty = ""
+  exponent = "1e3"
+  integer = "42"
+  negative = "-7"
+  null_keyword = "null"
+  unicode = "配置"
+}

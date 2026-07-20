@@ -30,7 +30,7 @@ jobs:
         run: cargo clippy --workspace --lib --bins -- -D warnings
 
       - name: Tests
-        run: cargo test --workspace --lib
+        run: cargo test --workspace --all-targets
 
   node-sdk:
     name: Node SDK Check

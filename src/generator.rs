@@ -175,29 +175,20 @@ impl Generator {
     }
 
     fn write_string(&self, s: &str, out: &mut String) {
-        // Check if the string needs quotes
-        // In HCL, only the special keywords true, false, null can appear unquoted AS LITERALS,
-        // but when we have a String value (Value::String), we must quote it to preserve the string type.
-        // So we quote everything except empty strings.
-        let needs_quotes = !s.is_empty();
-
-        if needs_quotes {
-            // Use double quotes with escaping
-            out.push('"');
-            for c in s.chars() {
-                match c {
-                    '"' => out.push_str("\\\""),
-                    '\\' => out.push_str("\\\\"),
-                    '\n' => out.push_str("\\n"),
-                    '\r' => out.push_str("\\r"),
-                    '\t' => out.push_str("\\t"),
-                    _ => out.push(c),
-                }
+        // Every String AST value must stay quoted. In particular, emitting an empty
+        // or numeric-looking string without quotes changes its type when reparsed.
+        out.push('"');
+        for c in s.chars() {
+            match c {
+                '"' => out.push_str("\\\""),
+                '\\' => out.push_str("\\\\"),
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                '\t' => out.push_str("\\t"),
+                _ => out.push(c),
             }
-            out.push('"');
-        } else {
-            out.push_str(s);
         }
+        out.push('"');
     }
 
     fn write_indent(&self, out: &mut String, indent: usize) {
