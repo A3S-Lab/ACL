@@ -5,6 +5,7 @@
 // ============================================================================
 
 pub mod ast;
+mod canonical;
 pub mod diagnostic;
 pub mod generator;
 pub mod lexer;
@@ -12,6 +13,9 @@ mod parse_limits;
 pub mod parser;
 
 pub use ast::{Block, Document, Value};
+pub use canonical::{
+    canonical_bytes, canonical_digest, CanonicalError, CANONICAL_DIGEST_ALGORITHM,
+};
 pub use diagnostic::{DiagnosticCode, ParseError};
 pub use generator::{generate, generate_from_map, Generator, GeneratorConfig};
 pub use lexer::{Lexer, Location, Span, Token, TokenWithSpan};

@@ -10,6 +10,8 @@ A lightweight, typed configuration language for agent configurations. ACL is des
 - **Bidirectional**: Parse ACL text to AST, generate AST back to text
 - **Type-Stable Strings**: Canonical generation quotes empty, numeric-looking,
   keyword-like, and Unicode strings so parsing cannot change their value kind
+- **Stable Canonical Digests**: Rust and Node.js expose byte-identical
+  canonical UTF-8 plus lowercase, algorithm-prefixed SHA-256 digests
 - **Structured Diagnostics**: Stable cross-SDK codes, complete source spans,
   UTF-8 byte offsets, and messages that never echo source token values
 - **Multi-platform SDK**: Rust crate and Node.js/TypeScript SDK
@@ -180,6 +182,46 @@ let output = generate(doc: &Document) -> String
 ```typescript
 const output = generate(doc: Document): string
 ```
+
+### Canonical bytes and digest
+
+Use the canonical APIs when ACL bytes are signed, stored, or compared across
+SDKs:
+
+```rust
+use a3s_acl::{canonical_bytes, canonical_digest, parse};
+
+let document = parse("limits { memory = 128000000 }")?;
+let bytes = canonical_bytes(&document)?;
+let digest = canonical_digest(&document)?;
+assert!(digest.starts_with("sha256:"));
+```
+
+```typescript
+import {canonicalBytes, canonicalDigest, parse} from '@a3s-lab/acl';
+
+const document = parse('limits { memory = 128000000 }');
+const bytes = canonicalBytes(document);
+const digest = canonicalDigest(document);
+```
+
+Canonical bytes use the default ACL generator, UTF-8 without a byte-order
+mark, LF line endings, and exactly one final LF. Attribute maps and object
+pairs are semantically unordered: their portable ASCII identifiers are sorted
+by ascending byte value, and duplicate object keys use the last value.
+Document and nested-block order, block-label order, list items, and function
+arguments remain ordered and therefore affect the digest.
+
+Finite numbers use the ECMAScript shortest round-tripping representation in
+both SDKs, including `0` for negative zero and stable exponent boundaries.
+Comments and source whitespace are discarded by parsing, while string and
+label Unicode scalar sequences are preserved without NFC/NFD normalization.
+Programmatic non-finite numbers, non-scalar JavaScript strings, and
+non-portable identifiers fail with redacted `CanonicalError` values. Digests
+are lowercase
+`sha256:<64 hexadecimal characters>` strings over the exact canonical bytes.
+The shared cases under `fixtures/canonical/digest-cases.json` are the
+cross-language compatibility oracle.
 
 ### Value Constructors
 

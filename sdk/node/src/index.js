@@ -16,6 +16,14 @@ const {
 // Parser
 const { DEFAULT_PARSE_LIMITS, Parser, parse } = require('./parser/Parser.js');
 
+// Canonical bytes and digests
+const {
+  CANONICAL_DIGEST_ALGORITHM,
+  CanonicalError,
+  canonicalBytes,
+  canonicalDigest,
+} = require('./canonical/canonical.js');
+
 // Generator
 const { generate, generateHCL } = require('./generator/generator.js');
 
@@ -38,6 +46,12 @@ module.exports = {
   DEFAULT_PARSE_LIMITS,
   DIAGNOSTIC_CODES,
   ParseError,
+
+  // Canonical bytes and digests
+  CANONICAL_DIGEST_ALGORITHM,
+  CanonicalError,
+  canonicalBytes,
+  canonicalDigest,
 
   // Generation
   generate,

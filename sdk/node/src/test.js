@@ -5,8 +5,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+  CANONICAL_DIGEST_ALGORITHM,
+  CanonicalError,
   ParseError,
   DEFAULT_PARSE_LIMITS,
+  canonicalBytes,
+  canonicalDigest,
   parse,
   generate,
   generateHCL,
@@ -68,6 +72,83 @@ function diagnosticFixture() {
       path.join(__dirname, '../../../fixtures/diagnostics/cases.json'),
       'utf8'
     )
+  );
+}
+
+function canonicalDigestFixture() {
+  return JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/canonical/digest-cases.json'),
+      'utf8'
+    )
+  );
+}
+
+console.log('=== Test Canonical Digests ===');
+assert(CANONICAL_DIGEST_ALGORITHM === 'sha256', 'canonical digest algorithm should be stable');
+for (const testCase of canonicalDigestFixture()) {
+  for (const input of [testCase.input, testCase.equivalentInput]) {
+    const document = parse(input);
+    assert(
+      Buffer.from(canonicalBytes(document)).toString('utf8') === testCase.canonical,
+      `${testCase.name} should have stable canonical bytes`
+    );
+    assert(
+      canonicalDigest(document) === testCase.digest,
+      `${testCase.name} should have a stable canonical digest`
+    );
+  }
+}
+
+const firstListDigest = canonicalDigest(parse('value = [1, 2]'));
+const secondListDigest = canonicalDigest(parse('value = [2, 1]'));
+assert(firstListDigest !== secondListDigest, 'canonical digests should preserve list order');
+assert(
+  canonicalDigest(parse('value = "é"')) !== canonicalDigest(parse('value = "e\u0301"')),
+  'canonical digests should preserve Unicode scalar sequences without normalization'
+);
+
+try {
+  canonicalDigest(
+    new DocumentBuilder()
+      .block(new BlockBuilder('value').attr('value', number(Number.POSITIVE_INFINITY)).build())
+      .build()
+  );
+  throw new Error('Expected non-finite canonical number to fail');
+} catch (error) {
+  assert(
+    error instanceof CanonicalError && error.code === 'acl.canonical.non_finite_number',
+    'canonical digests should reject non-finite numbers with a stable error'
+  );
+}
+
+try {
+  canonicalDigest(
+    new DocumentBuilder()
+      .block(new BlockBuilder('value').attr('value', string('\uD800')).build())
+      .build()
+  );
+  throw new Error('Expected non-scalar canonical string to fail');
+} catch (error) {
+  assert(
+    error instanceof CanonicalError && error.code === 'acl.canonical.invalid_unicode',
+    'canonical digests should reject non-scalar JavaScript strings'
+  );
+}
+
+try {
+  canonicalDigest(
+    new DocumentBuilder()
+      .block(new BlockBuilder('配置').attr('private', string('private-value')).build())
+      .build()
+  );
+  throw new Error('Expected non-portable canonical identifier to fail');
+} catch (error) {
+  assert(
+    error instanceof CanonicalError
+      && error.code === 'acl.canonical.unsupported_identifier'
+      && !error.message.includes('private-value'),
+    'canonical identifier errors should be stable and redacted'
   );
 }
 

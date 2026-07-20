@@ -76,6 +76,15 @@ export class ParseError extends Error {
   readonly column: number;
 }
 
+export type CanonicalErrorCode =
+  | 'acl.canonical.invalid_unicode'
+  | 'acl.canonical.non_finite_number'
+  | 'acl.canonical.unsupported_identifier';
+
+export class CanonicalError extends Error {
+  readonly code: CanonicalErrorCode;
+}
+
 export interface ParseLimits {
   maxDocumentBytes: number;
   maxNestingDepth: number;
@@ -85,9 +94,12 @@ export interface ParseLimits {
 
 // Core API
 export const DEFAULT_PARSE_LIMITS: Readonly<ParseLimits>;
+export const CANONICAL_DIGEST_ALGORITHM: 'sha256';
 export function parse(input: string, limits?: Partial<ParseLimits>): Document;
 export function generate(doc: Document): string;
 export function generateHCL(doc: Document): string;
+export function canonicalBytes(doc: Document): Uint8Array;
+export function canonicalDigest(doc: Document): string;
 
 // Value constructors
 export function string(s: string): Value;
@@ -132,6 +144,10 @@ export default {
   DEFAULT_PARSE_LIMITS,
   DIAGNOSTIC_CODES,
   ParseError,
+  CANONICAL_DIGEST_ALGORITHM,
+  CanonicalError,
+  canonicalBytes,
+  canonicalDigest,
   generate,
   generateHCL,
   string,

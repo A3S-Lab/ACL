@@ -339,7 +339,8 @@ class Parser {
 
   parseObject() {
     this.advance(); // consume '{'
-    const pairs = [];
+    const pairs = new Map();
+    let itemCount = 0;
 
     this.skipNewlines();
     while (this.current()?.type !== 'RightBrace' && this.current()?.type !== 'Eof') {
@@ -349,10 +350,11 @@ class Parser {
         this.advance();
 
         if (this.current()?.type === 'Equal' || this.current()?.type === 'Colon') {
-          this.ensureCollectionCapacity(pairs.length, itemToken);
+          this.ensureCollectionCapacity(itemCount, itemToken);
           this.advance();
           const value = this.parseValue();
-          pairs.push([key, value]);
+          pairs.set(key, value);
+          itemCount += 1;
         }
       }
       this.skipNewlines();
@@ -366,7 +368,7 @@ class Parser {
       this.advance();
     }
 
-    return { kind: 'Object', pairs };
+    return { kind: 'Object', pairs: Array.from(pairs.entries()) };
   }
 
   parseList() {

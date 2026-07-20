@@ -43,7 +43,9 @@ function writeValue(value, indent = 0) {
       return `[${value.items.map(v => writeValue(v, indent)).join(', ')}]`;
     case 'Object':
       if (value.pairs.length === 0) return '{}';
-      const pairStrs = value.pairs.map(([k, v]) => `${k} = ${writeValue(v, indent)}`);
+      const canonicalPairs = Array.from(new Map(value.pairs).entries())
+        .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+      const pairStrs = canonicalPairs.map(([k, v]) => `${k} = ${writeValue(v, indent)}`);
       return `{${pairStrs.join(', ')}}`;
     case 'Call':
       const args = value.args.map(a => writeValue(a, indent)).join(', ');
