@@ -7,6 +7,12 @@
 // Lexer
 const { Lexer } = require('./lexer/Lexer.js');
 
+// Diagnostics
+const {
+  DIAGNOSTIC_CODES,
+  ParseError,
+} = require('./diagnostic/ParseError.js');
+
 // Parser
 const { DEFAULT_PARSE_LIMITS, Parser, parse } = require('./parser/Parser.js');
 
@@ -30,6 +36,8 @@ module.exports = {
   // Core parsing
   parse,
   DEFAULT_PARSE_LIMITS,
+  DIAGNOSTIC_CODES,
+  ParseError,
 
   // Generation
   generate,

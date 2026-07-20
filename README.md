@@ -10,6 +10,8 @@ A lightweight, typed configuration language for agent configurations. ACL is des
 - **Bidirectional**: Parse ACL text to AST, generate AST back to text
 - **Type-Stable Strings**: Canonical generation quotes empty, numeric-looking,
   keyword-like, and Unicode strings so parsing cannot change their value kind
+- **Structured Diagnostics**: Stable cross-SDK codes, complete source spans,
+  UTF-8 byte offsets, and messages that never echo source token values
 - **Multi-platform SDK**: Rust crate and Node.js/TypeScript SDK
 
 ## Syntax
@@ -124,6 +126,50 @@ objects, and function calls. Collection limits apply independently to the
 document, each block body and label list, each list or object, and each
 function argument list. Direct lexer use is an advanced API and is not a
 substitute for the bounded high-level parser.
+
+### Parse diagnostics
+
+Rust and Node.js return the same stable diagnostic codes and source spans:
+
+| Code | Meaning |
+| --- | --- |
+| `acl.limit.document_bytes` | Document byte limit exceeded |
+| `acl.limit.token_bytes` | Source token byte limit exceeded |
+| `acl.limit.nesting_depth` | Structural nesting limit exceeded |
+| `acl.limit.collection_items` | Collection item limit exceeded |
+| `acl.parse.unexpected_token` | Token is not valid at this grammar position |
+| `acl.parse.expected_token` | A required delimiter or token kind is missing |
+| `acl.parse.unexpected_eof` | Input ended before the current construct |
+
+Locations use one-based lines and columns. Span offsets are zero-based UTF-8
+byte offsets, so Rust and Node.js agree even when Unicode precedes an error.
+The compatibility `line` and `column` fields equal `span.start.line` and
+`span.start.column`.
+
+```rust
+use a3s_acl::{parse, DiagnosticCode};
+
+let error = parse(r#""private-value""#).unwrap_err();
+assert_eq!(error.code, DiagnosticCode::UnexpectedToken);
+assert_eq!(error.code.as_str(), "acl.parse.unexpected_token");
+assert_eq!(error.span.start.offset, 0);
+```
+
+```typescript
+import { parse, ParseError } from '@a3s-lab/acl';
+
+try {
+  parse('"private-value"');
+} catch (error) {
+  if (error instanceof ParseError) {
+    console.error(error.code, error.span);
+  }
+}
+```
+
+Diagnostics identify token kinds but never include token values or source
+snippets. Callers should preserve that boundary and must not attach the
+untrusted ACL document to API errors or logs.
 
 ### Generate
 

@@ -3,6 +3,11 @@
  */
 
 const { Lexer } = require('../lexer/Lexer.js');
+const {
+  DIAGNOSTIC_CODES,
+  ParseError,
+  pointSpan,
+} = require('../diagnostic/ParseError.js');
 
 const DEFAULT_PARSE_LIMITS = Object.freeze({
   maxDocumentBytes: 1024 * 1024,
@@ -54,14 +59,18 @@ class Parser {
     return this.tokens[this.pos + offset];
   }
 
+  eofSpan() {
+    return this.tokens[this.tokens.length - 1]?.span ?? pointSpan();
+  }
+
   parse(input, limits) {
     this.limits = normalizeParseLimits(limits);
     if (Buffer.byteLength(input, 'utf8') > this.limits.maxDocumentBytes) {
-      throw {
-        message: `ACL parse limit exceeded: document is larger than ${this.limits.maxDocumentBytes} bytes`,
-        line: 1,
-        column: 1,
-      };
+      throw new ParseError(
+        DIAGNOSTIC_CODES.DOCUMENT_BYTES_LIMIT,
+        `ACL parse limit exceeded: document is larger than ${this.limits.maxDocumentBytes} bytes`,
+        pointSpan()
+      );
     }
 
     const lexer = new Lexer(input, this.limits.maxTokenBytes);
@@ -78,11 +87,11 @@ class Parser {
       if (token.type === 'LeftBrace' || token.type === 'LeftBracket' || token.type === 'LeftParen') {
         depth++;
         if (depth > this.limits.maxNestingDepth) {
-          throw {
-            message: `ACL parse limit exceeded: nesting depth is greater than ${this.limits.maxNestingDepth}`,
-            line: token.span.start.line,
-            column: token.span.start.column,
-          };
+          throw new ParseError(
+            DIAGNOSTIC_CODES.NESTING_DEPTH_LIMIT,
+            `ACL parse limit exceeded: nesting depth is greater than ${this.limits.maxNestingDepth}`,
+            token.span
+          );
         }
       } else if (token.type === 'RightBrace' || token.type === 'RightBracket' || token.type === 'RightParen') {
         depth = Math.max(0, depth - 1);
@@ -92,11 +101,11 @@ class Parser {
 
   ensureCollectionCapacity(currentLength, token = this.current()) {
     if (currentLength >= this.limits.maxCollectionItems) {
-      throw {
-        message: `ACL parse limit exceeded: collection has more than ${this.limits.maxCollectionItems} items`,
-        line: token?.span.start.line ?? 0,
-        column: token?.span.start.column ?? 0,
-      };
+      throw new ParseError(
+        DIAGNOSTIC_CODES.COLLECTION_ITEMS_LIMIT,
+        `ACL parse limit exceeded: collection has more than ${this.limits.maxCollectionItems} items`,
+        token?.span ?? this.eofSpan()
+      );
     }
   }
 
@@ -121,7 +130,11 @@ class Parser {
         }
       } else {
         const err = this.current();
-        throw { message: `Unexpected token: ${err?.type}`, line: err?.span.start.line ?? 0, column: err?.span.start.column ?? 0 };
+        throw new ParseError(
+          DIAGNOSTIC_CODES.UNEXPECTED_TOKEN,
+          `Unexpected token: ${err?.type ?? 'Eof'}`,
+          err?.span ?? this.eofSpan()
+        );
       }
       this.skipNewlines();
     }
@@ -145,11 +158,11 @@ class Parser {
   parseBlock() {
     const token = this.current();
     if (this.blockDepth >= this.limits.maxNestingDepth) {
-      throw {
-        message: `ACL parse limit exceeded: nesting depth is greater than ${this.limits.maxNestingDepth}`,
-        line: token?.span.start.line ?? 0,
-        column: token?.span.start.column ?? 0,
-      };
+      throw new ParseError(
+        DIAGNOSTIC_CODES.NESTING_DEPTH_LIMIT,
+        `ACL parse limit exceeded: nesting depth is greater than ${this.limits.maxNestingDepth}`,
+        token?.span ?? this.eofSpan()
+      );
     }
 
     this.blockDepth++;
@@ -270,7 +283,13 @@ class Parser {
 
   parseValue() {
     const token = this.current();
-    if (!token) throw { message: 'Unexpected end of input', line: 0, column: 0 };
+    if (!token) {
+      throw new ParseError(
+        DIAGNOSTIC_CODES.UNEXPECTED_EOF,
+        'Unexpected end of input',
+        this.eofSpan()
+      );
+    }
 
     switch (token.type) {
       case 'String':
@@ -303,8 +322,18 @@ class Parser {
         }
         return { kind: 'String', value: name };
       }
+      case 'Eof':
+        throw new ParseError(
+          DIAGNOSTIC_CODES.UNEXPECTED_EOF,
+          'Unexpected end of input',
+          token.span
+        );
       default:
-        throw { message: `Unexpected token in value position: ${token.type}`, line: token.span.start.line, column: token.span.start.column };
+        throw new ParseError(
+          DIAGNOSTIC_CODES.UNEXPECTED_TOKEN,
+          `Unexpected token in value position: ${token.type}`,
+          token.span
+        );
     }
   }
 
@@ -386,7 +415,19 @@ class Parser {
         this.advance();
         break;
       } else {
-        throw { message: `Expected ',' or ')', found: ${this.current()?.type}`, line: this.current()?.span.start.line ?? 0, column: this.current()?.span.start.column ?? 0 };
+        const token = this.current();
+        if (!token || token.type === 'Eof') {
+          throw new ParseError(
+            DIAGNOSTIC_CODES.UNEXPECTED_EOF,
+            'Unexpected end of input in function call',
+            token?.span ?? this.eofSpan()
+          );
+        }
+        throw new ParseError(
+          DIAGNOSTIC_CODES.EXPECTED_TOKEN,
+          `Expected ',' or ')', found ${token.type}`,
+          token.span
+        );
       }
     }
 

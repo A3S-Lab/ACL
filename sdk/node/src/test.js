@@ -5,6 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+  ParseError,
   DEFAULT_PARSE_LIMITS,
   parse,
   generate,
@@ -58,6 +59,46 @@ function expectLimitError(input, limits, expectedMessage) {
   } catch (error) {
     assert(error.message === expectedMessage, expectedMessage);
     return error;
+  }
+}
+
+function diagnosticFixture() {
+  return JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/diagnostics/cases.json'),
+      'utf8'
+    )
+  );
+}
+
+console.log('=== Test Structured Diagnostics ===');
+for (const testCase of diagnosticFixture()) {
+  const limits = {
+    maxDocumentBytes: testCase.limits.maxDocumentBytes,
+    maxNestingDepth: testCase.limits.maxNestingDepth,
+    maxCollectionItems: testCase.limits.maxCollectionItems,
+    maxTokenBytes: testCase.limits.maxTokenBytes,
+  };
+  for (const key of Object.keys(limits)) {
+    if (limits[key] === undefined) delete limits[key];
+  }
+
+  try {
+    parse(testCase.input, limits);
+    throw new Error(`${testCase.name} should fail`);
+  } catch (error) {
+    assert(error instanceof ParseError, `${testCase.name} should return ParseError`);
+    assert(error.code === testCase.expected.code, `${testCase.name} should have a stable code`);
+    assert(error.message === testCase.expected.message, `${testCase.name} should have a stable message`);
+    assert(
+      JSON.stringify(error.span) === JSON.stringify(testCase.expected.span),
+      `${testCase.name} should have a byte-accurate span`
+    );
+    assert(
+      error.line === error.span.start.line && error.column === error.span.start.column,
+      `${testCase.name} should preserve line and column compatibility`
+    );
+    assert(!error.message.includes('TOP_SECRET'), `${testCase.name} should redact source values`);
   }
 }
 

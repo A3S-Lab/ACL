@@ -5,16 +5,18 @@
 // ============================================================================
 
 pub mod ast;
+pub mod diagnostic;
 pub mod generator;
 pub mod lexer;
 mod parse_limits;
 pub mod parser;
 
 pub use ast::{Block, Document, Value};
+pub use diagnostic::{DiagnosticCode, ParseError};
 pub use generator::{generate, generate_from_map, Generator, GeneratorConfig};
 pub use lexer::{Lexer, Location, Span, Token, TokenWithSpan};
 pub use parse_limits::{ParseLimits, DEFAULT_PARSE_LIMITS};
-pub use parser::{parse, parse_with_limits, ParseError};
+pub use parser::{parse, parse_with_limits};
 
 /// Parse ACL text into a Document
 ///
@@ -320,11 +322,15 @@ mod tests {
         let _ = Span::default();
         let _ = Token::Eof;
         let _ = TokenWithSpan::new(Token::Eof, Location::default(), Location::default());
-        let _ = ParseError {
-            message: "test".to_string(),
-            line: 1,
-            column: 1,
-        };
+        let _ = ParseError::new(
+            DiagnosticCode::UnexpectedToken,
+            "test",
+            Span::point(Location {
+                line: 1,
+                column: 1,
+                offset: 0,
+            }),
+        );
     }
 
     #[test]
