@@ -4,7 +4,18 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { parse, generate, generateHCL, string, number, boolean, call, BlockBuilder, DocumentBuilder } = require('./index.js');
+const {
+  DEFAULT_PARSE_LIMITS,
+  parse,
+  generate,
+  generateHCL,
+  string,
+  number,
+  boolean,
+  call,
+  BlockBuilder,
+  DocumentBuilder,
+} = require('./index.js');
 
 // Helper to convert Map to Object for display
 function mapToObj(m) {
@@ -34,6 +45,101 @@ function assert(condition, message) {
     throw new Error('Assertion failed: ' + message);
   }
   console.log('  PASS: ' + message);
+}
+
+function limitFixture(name) {
+  return fs.readFileSync(path.join(__dirname, '../../../fixtures/limits', name), 'utf8');
+}
+
+function expectLimitError(input, limits, expectedMessage) {
+  try {
+    parse(input, limits);
+    throw new Error('Expected parsing to fail');
+  } catch (error) {
+    assert(error.message === expectedMessage, expectedMessage);
+    return error;
+  }
+}
+
+console.log('=== Test Bounded Parsing ===');
+assert(Object.isFrozen(DEFAULT_PARSE_LIMITS), 'default parse limits should be immutable');
+assert(
+  DEFAULT_PARSE_LIMITS.maxDocumentBytes === 1024 * 1024
+    && DEFAULT_PARSE_LIMITS.maxNestingDepth === 64
+    && DEFAULT_PARSE_LIMITS.maxCollectionItems === 10_000
+    && DEFAULT_PARSE_LIMITS.maxTokenBytes === 256 * 1024,
+  'Rust and Node.js should publish the documented default limits'
+);
+const tokenLimitFixture = limitFixture('token.acl');
+const nestingLimitFixture = limitFixture('nested.acl');
+const collectionLimitFixture = limitFixture('collection.acl');
+
+const documentLimit = Buffer.byteLength(tokenLimitFixture, 'utf8') - 1;
+const documentError = expectLimitError(
+  tokenLimitFixture,
+  { maxDocumentBytes: documentLimit },
+  `ACL parse limit exceeded: document is larger than ${documentLimit} bytes`
+);
+assert(documentError.line === 1 && documentError.column === 1, 'document limit should point to the start of input');
+expectLimitError(
+  'name = "智谱"',
+  { maxDocumentBytes: Buffer.byteLength('name = "智谱"', 'utf8') - 1 },
+  'ACL parse limit exceeded: document is larger than 14 bytes'
+);
+
+const tokenError = expectLimitError(
+  tokenLimitFixture,
+  { maxTokenBytes: 8 },
+  'ACL parse limit exceeded: token is longer than 8 bytes'
+);
+assert(tokenError.line === 1 && tokenError.column === 8, 'token limit should point to the oversized token');
+
+expectLimitError(
+  'name = "智谱"',
+  { maxTokenBytes: 7 },
+  'ACL parse limit exceeded: token is longer than 7 bytes'
+);
+
+const nestingError = expectLimitError(
+  nestingLimitFixture,
+  { maxNestingDepth: 1 },
+  'ACL parse limit exceeded: nesting depth is greater than 1'
+);
+assert(nestingError.line === 2 && nestingError.column === 9, 'nesting limit should point to the opening delimiter');
+
+const collectionError = expectLimitError(
+  collectionLimitFixture,
+  { maxCollectionItems: 2 },
+  'ACL parse limit exceeded: collection has more than 2 items'
+);
+assert(collectionError.line === 1, 'collection limit should point to the oversized collection');
+
+for (const input of [
+  'first = 1\nsecond = 2\nthird = 3',
+  'root { first = 1 second = 2 third = 3 }',
+  'root "first" "second" "third" { value = true }',
+  'value = { first = 1 second = 2 third = 3 }',
+  'value = concat(1, 2, 3)',
+]) {
+  expectLimitError(
+    input,
+    { maxCollectionItems: 2 },
+    'ACL parse limit exceeded: collection has more than 2 items'
+  );
+}
+
+parse(tokenLimitFixture);
+parse(nestingLimitFixture);
+parse(collectionLimitFixture);
+
+try {
+  parse('name = "test"', { maxDocumentBytes: Number.POSITIVE_INFINITY });
+  throw new Error('Expected invalid parse limits to fail');
+} catch (error) {
+  assert(
+    error instanceof TypeError && error.message.includes('maxDocumentBytes'),
+    'invalid JavaScript limits should fail before parsing'
+  );
 }
 
 // Test basic parsing

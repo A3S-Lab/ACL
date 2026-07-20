@@ -55,8 +55,16 @@ export interface ParseError {
   column: number;
 }
 
+export interface ParseLimits {
+  maxDocumentBytes: number;
+  maxNestingDepth: number;
+  maxCollectionItems: number;
+  maxTokenBytes: number;
+}
+
 // Core API
-export function parse(input: string): Document;
+export const DEFAULT_PARSE_LIMITS: Readonly<ParseLimits>;
+export function parse(input: string, limits?: Partial<ParseLimits>): Document;
 export function generate(doc: Document): string;
 export function generateHCL(doc: Document): string;
 
@@ -87,19 +95,20 @@ export class DocumentBuilder {
 
 // Lexer (advanced usage)
 export class Lexer {
-  constructor(input: string);
+  constructor(input: string, maxTokenBytes?: number);
   tokenize(): Token[];
 }
 
 // Parser class (advanced usage)
 export class Parser {
   constructor();
-  parse(input: string): Document;
+  parse(input: string, limits?: Partial<ParseLimits>): Document;
 }
 
 // Default export with all members
 export default {
   parse,
+  DEFAULT_PARSE_LIMITS,
   generate,
   generateHCL,
   string,

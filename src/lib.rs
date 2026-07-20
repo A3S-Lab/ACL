@@ -7,12 +7,14 @@
 pub mod ast;
 pub mod generator;
 pub mod lexer;
+mod parse_limits;
 pub mod parser;
 
 pub use ast::{Block, Document, Value};
 pub use generator::{generate, generate_from_map, Generator, GeneratorConfig};
 pub use lexer::{Lexer, Location, Span, Token, TokenWithSpan};
-pub use parser::{parse, ParseError};
+pub use parse_limits::{ParseLimits, DEFAULT_PARSE_LIMITS};
+pub use parser::{parse, parse_with_limits, ParseError};
 
 /// Parse ACL text into a Document
 ///

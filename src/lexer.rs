@@ -72,11 +72,21 @@ pub struct Lexer<'a> {
     chars: Vec<char>,
     byte_offsets: Vec<usize>,
     pos: usize,
+    max_token_bytes: Option<usize>,
+    token_limit_location: Option<Location>,
     pub location: Location,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
+        Self::with_optional_token_limit(input, None)
+    }
+
+    pub(crate) fn with_max_token_bytes(input: &'a str, max_token_bytes: usize) -> Self {
+        Self::with_optional_token_limit(input, Some(max_token_bytes))
+    }
+
+    fn with_optional_token_limit(input: &'a str, max_token_bytes: Option<usize>) -> Self {
         let chars: Vec<char> = input.chars().collect();
         let byte_offsets = input
             .char_indices()
@@ -88,12 +98,18 @@ impl<'a> Lexer<'a> {
             chars,
             byte_offsets,
             pos: 0,
+            max_token_bytes,
+            token_limit_location: None,
             location: Location {
                 line: 1,
                 column: 1,
                 offset: 0,
             },
         }
+    }
+
+    pub(crate) fn token_limit_location(&self) -> Option<Location> {
+        self.token_limit_location
     }
 
     fn current(&self) -> Option<char> {
@@ -132,6 +148,7 @@ impl<'a> Lexer<'a> {
 
         while let Some(c) = self.current() {
             let start = self.start_location();
+            let start_pos = self.pos;
 
             match c {
                 '{' => {
@@ -213,6 +230,15 @@ impl<'a> Lexer<'a> {
                 }
                 _ => {
                     self.advance();
+                }
+            }
+
+            if let Some(max_token_bytes) = self.max_token_bytes {
+                let token_bytes =
+                    self.byte_offsets[self.pos].saturating_sub(self.byte_offsets[start_pos]);
+                if token_bytes > max_token_bytes {
+                    self.token_limit_location = Some(start);
+                    break;
                 }
             }
         }

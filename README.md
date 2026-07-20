@@ -84,6 +84,47 @@ let doc = parse(input: &str) -> Result<Document, ParseError>
 const doc = parse(input: string): Document
 ```
 
+The high-level parsers apply resource limits before recursively parsing
+untrusted input. Defaults are identical in Rust and Node.js:
+
+| Limit | Default |
+| --- | ---: |
+| UTF-8 document size | 1 MiB |
+| Structural nesting depth | 64 |
+| Items in one document or collection | 10,000 |
+| UTF-8 source token size | 256 KiB |
+
+Use explicit limits at API admission boundaries:
+
+```rust
+use a3s_acl::{parse_with_limits, ParseLimits};
+
+let doc = parse_with_limits(
+    input,
+    ParseLimits {
+        max_document_bytes: 64 * 1024,
+        max_nesting_depth: 32,
+        max_collection_items: 1_000,
+        max_token_bytes: 16 * 1024,
+    },
+)?;
+```
+
+```typescript
+const doc = parse(input, {
+  maxDocumentBytes: 64 * 1024,
+  maxNestingDepth: 32,
+  maxCollectionItems: 1_000,
+  maxTokenBytes: 16 * 1024,
+});
+```
+
+Document and token sizes count UTF-8 bytes. Nesting includes blocks, lists,
+objects, and function calls. Collection limits apply independently to the
+document, each block body and label list, each list or object, and each
+function argument list. Direct lexer use is an advanced API and is not a
+substitute for the bounded high-level parser.
+
 ### Generate
 
 ```rust
