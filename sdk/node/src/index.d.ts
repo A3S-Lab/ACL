@@ -98,11 +98,99 @@ export interface DiagnosticReport {
   readonly truncated: boolean;
 }
 
+export interface SchemaCardinality {
+  min: number;
+  max?: number | null;
+}
+
+export interface AttributeSchema {
+  required?: boolean;
+  value: ValueSchema;
+}
+
+export interface BlockSchema {
+  occurrences?: SchemaCardinality;
+  labels?: SchemaCardinality;
+  body?: Schema;
+}
+
+export interface Schema {
+  attributes?: Record<string, AttributeSchema>;
+  blocks?: Record<string, BlockSchema>;
+  allowUnknownAttributes?: boolean;
+  allowUnknownBlocks?: boolean;
+}
+
+export type ValueSchema =
+  | { kind: 'Any' }
+  | { kind: 'String' }
+  | { kind: 'Number' }
+  | { kind: 'Bool' }
+  | { kind: 'Null' }
+  | { kind: 'List'; item: ValueSchema }
+  | {
+      kind: 'Object';
+      fields?: Record<string, AttributeSchema>;
+      allowUnknownFields?: boolean;
+    }
+  | {
+      kind: 'Call';
+      names?: string[];
+      arguments?: SchemaCardinality;
+      argument?: ValueSchema;
+    }
+  | { kind: 'OneOf'; variants: ValueSchema[] };
+
+export type SchemaDiagnosticCode =
+  | 'acl.schema.unknown_attribute'
+  | 'acl.schema.duplicate_attribute'
+  | 'acl.schema.missing_attribute'
+  | 'acl.schema.unknown_block'
+  | 'acl.schema.block_count'
+  | 'acl.schema.label_count'
+  | 'acl.schema.value_type'
+  | 'acl.schema.unknown_object_field'
+  | 'acl.schema.duplicate_object_field'
+  | 'acl.schema.missing_object_field'
+  | 'acl.schema.call_name'
+  | 'acl.schema.call_argument_count';
+
+export const SCHEMA_DIAGNOSTIC_CODES: Readonly<{
+  UNKNOWN_ATTRIBUTE: 'acl.schema.unknown_attribute';
+  DUPLICATE_ATTRIBUTE: 'acl.schema.duplicate_attribute';
+  MISSING_ATTRIBUTE: 'acl.schema.missing_attribute';
+  UNKNOWN_BLOCK: 'acl.schema.unknown_block';
+  BLOCK_COUNT: 'acl.schema.block_count';
+  LABEL_COUNT: 'acl.schema.label_count';
+  VALUE_TYPE: 'acl.schema.value_type';
+  UNKNOWN_OBJECT_FIELD: 'acl.schema.unknown_object_field';
+  DUPLICATE_OBJECT_FIELD: 'acl.schema.duplicate_object_field';
+  MISSING_OBJECT_FIELD: 'acl.schema.missing_object_field';
+  CALL_NAME: 'acl.schema.call_name';
+  CALL_ARGUMENT_COUNT: 'acl.schema.call_argument_count';
+}>;
+
+export interface SchemaDiagnostic {
+  readonly code: SchemaDiagnosticCode;
+  readonly message: string;
+  readonly path: string;
+}
+
+export interface SchemaReport {
+  readonly diagnostics: SchemaDiagnostic[];
+  readonly truncated: boolean;
+}
+
 // Core API
 export const DEFAULT_PARSE_LIMITS: Readonly<ParseLimits>;
 export const CANONICAL_DIGEST_ALGORITHM: 'sha256';
 export function parse(input: string, limits?: Partial<ParseLimits>): Document;
 export function collectDiagnostics(input: string, limits?: Partial<ParseLimits>): DiagnosticReport;
+export function validateDocument(
+  document: Document,
+  schema: Schema,
+  limits?: Partial<ParseLimits>
+): SchemaReport;
 export function generate(doc: Document): string;
 export function canonicalBytes(doc: Document): Uint8Array;
 export function canonicalDigest(doc: Document): string;
@@ -149,8 +237,10 @@ export class Parser {
 export default {
   parse,
   collectDiagnostics,
+  validateDocument,
   DEFAULT_PARSE_LIMITS,
   DIAGNOSTIC_CODES,
+  SCHEMA_DIAGNOSTIC_CODES,
   ParseError,
   CANONICAL_DIGEST_ALGORITHM,
   CanonicalError,

@@ -508,4 +508,10 @@ function collectDiagnostics(input, limits) {
   return parser.collectDiagnostics(input, limits);
 }
 
-module.exports = { collectDiagnostics, DEFAULT_PARSE_LIMITS, Parser, parse };
+module.exports = {
+  collectDiagnostics,
+  DEFAULT_PARSE_LIMITS,
+  normalizeParseLimits,
+  Parser,
+  parse,
+};
