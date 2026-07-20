@@ -2,11 +2,6 @@
  * ACL Generator - Generates ACL text from AST
  */
 
-/**
- * @typedef {Object} GeneratorConfig
- * @property {boolean} [labelsAsAttrs=false] - Output labels as attributes (HCL format) instead of block labels (ACL format)
- */
-
 function needsQuotes() {
   // Every String AST value must stay quoted. Numeric-looking strings would
   // otherwise be reparsed as Number values.
@@ -53,7 +48,7 @@ function writeValue(value, indent = 0) {
   }
 }
 
-function generateBlock(block, indent = 0, config = {}) {
+function generateBlock(block, indent = 0) {
   const spaces = '  '.repeat(indent);
   let result = spaces;
 
@@ -67,9 +62,7 @@ function generateBlock(block, indent = 0, config = {}) {
     }
   }
 
-  // In labelsAsAttrs mode, don't output labels in block header
-  // Instead, we'll output them as attributes inside the block
-  if (!config.labelsAsAttrs && block.labels.length > 0) {
+  if (block.labels.length > 0) {
     result += `${block.name} ${block.labels.map(l => `"${escapeString(l)}"`).join(' ')}`;
   } else {
     result += block.name;
@@ -77,25 +70,12 @@ function generateBlock(block, indent = 0, config = {}) {
 
   const attrKeys = Array.from(block.attributes.keys()).sort();
 
-  // In labelsAsAttrs mode, output the first label as a "name" attribute
-  const hasLabelsAsAttrs = config.labelsAsAttrs && block.labels.length > 0;
-
-  if (attrKeys.length === 0 && block.blocks.length === 0 && !hasLabelsAsAttrs) {
+  if (attrKeys.length === 0 && block.blocks.length === 0) {
     result += ' { }';
     return result;
   }
 
   result += ' {\n';
-
-  // In labelsAsAttrs mode, output the first label as an attribute
-  // For "models" blocks, use "id" as the attribute name (HCL format)
-  // For other blocks (like "providers"), use "name"
-  // Always quote the value in HCL format to avoid interpretation as identifier
-  if (hasLabelsAsAttrs) {
-    const labelValue = block.labels[0];
-    const attrName = block.name === 'models' ? 'id' : 'name';
-    result += `${spaces}  ${attrName} = "${escapeString(labelValue)}"\n`;
-  }
 
   for (const key of attrKeys) {
     const value = block.attributes.get(key);
@@ -103,7 +83,7 @@ function generateBlock(block, indent = 0, config = {}) {
   }
 
   for (const nested of block.blocks) {
-    result += generateBlock(nested, indent + 1, config) + '\n';
+    result += generateBlock(nested, indent + 1) + '\n';
   }
 
   result += `${spaces}}`;
@@ -113,20 +93,13 @@ function generateBlock(block, indent = 0, config = {}) {
 /**
  * Generate ACL text from a Document
  * @param {Object} doc - The document to generate
- * @param {GeneratorConfig} [config] - Optional generator configuration
  * @returns {string} The generated text
  */
-function generate(doc, config = {}) {
-  return doc.blocks.map(b => generateBlock(b, 0, config)).join('\n');
+function generate(doc, options) {
+  if (options !== undefined) {
+    throw new TypeError('ACL generator options are not supported');
+  }
+  return doc.blocks.map(b => generateBlock(b)).join('\n');
 }
 
-/**
- * Generate HCL-formatted text from a Document (labels as attributes)
- * @param {Object} doc - The document to generate
- * @returns {string} The generated HCL-formatted text
- */
-function generateHCL(doc) {
-  return generate(doc, { labelsAsAttrs: true });
-}
-
-module.exports = { generate, generateHCL, generateBlock, writeValue, needsQuotes, escapeString };
+module.exports = { generate, generateBlock, writeValue, needsQuotes, escapeString };

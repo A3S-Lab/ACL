@@ -97,7 +97,6 @@ export const DEFAULT_PARSE_LIMITS: Readonly<ParseLimits>;
 export const CANONICAL_DIGEST_ALGORITHM: 'sha256';
 export function parse(input: string, limits?: Partial<ParseLimits>): Document;
 export function generate(doc: Document): string;
-export function generateHCL(doc: Document): string;
 export function canonicalBytes(doc: Document): Uint8Array;
 export function canonicalDigest(doc: Document): string;
 
@@ -149,7 +148,6 @@ export default {
   canonicalBytes,
   canonicalDigest,
   generate,
-  generateHCL,
   string,
   number,
   boolean,
