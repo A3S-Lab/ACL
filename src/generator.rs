@@ -48,7 +48,7 @@ impl Generator {
 
     fn write_document(&self, doc: &Document, out: &mut String, indent: usize) {
         for (i, block) in doc.blocks.iter().enumerate() {
-            if i > 0 {
+            if i > 0 && !out.ends_with('\n') {
                 out.push('\n');
             }
             self.write_block(block, out, indent);
@@ -58,10 +58,15 @@ impl Generator {
     fn write_block(&self, block: &Block, out: &mut String, indent: usize) {
         self.write_indent(out, indent);
 
-        // Check if this is a single-value block (no nested blocks, only one attribute)
+        // The parser represents a document-level attribute as a block whose sole attribute has the
+        // same name. Preserve that assignment shape for every value kind. A real block may also
+        // contain one attribute, but its key differs from the block name and must retain braces.
         if block.labels.is_empty() && block.blocks.is_empty() && block.attributes.len() == 1 {
-            let (_key, value) = block.attributes.iter().next().unwrap();
-            if value.is_string() && !value.as_str().unwrap().contains(' ') {
+            if let Some((key, value)) = block.attributes.iter().next() {
+                if key != &block.name {
+                    self.write_regular_block(block, out, indent);
+                    return;
+                }
                 out.push_str(&block.name);
                 out.push_str(" = ");
                 self.write_value(value, out);
@@ -70,6 +75,10 @@ impl Generator {
             }
         }
 
+        self.write_regular_block(block, out, indent);
+    }
+
+    fn write_regular_block(&self, block: &Block, out: &mut String, indent: usize) {
         // Write block header
         out.push_str(&block.name);
 

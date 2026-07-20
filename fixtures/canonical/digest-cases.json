@@ -10,8 +10,15 @@
     "name": "duplicate object keys use the last value",
     "input": "value = {key = 0, key = 1}",
     "equivalentInput": "value = {key = 1}",
-    "canonical": "value {\n  value = {key = 1}\n}\n",
-    "digest": "sha256:8e786ef2ccaaee5e906a79e8ad8303204e815376884ef90988a58666bb1c0b15"
+    "canonical": "value = {key = 1}\n",
+    "digest": "sha256:9f1c2d55f580d3921715aec351f456b023688b87a7aa064b9eb57eafd77fbb04"
+  },
+  {
+    "name": "bare attributes and single-attribute blocks retain their shapes",
+    "input": "enabled = true\nlimits {\n  mode = \"strict\"\n}",
+    "equivalentInput": "enabled: true\nlimits { mode = \"strict\" }",
+    "canonical": "enabled = true\nlimits {\n  mode = \"strict\"\n}\n",
+    "digest": "sha256:c99435e692be7850b9e78597af6bb79186ed4a744bd8ccfb9a03cd660a3e589e"
   },
   {
     "name": "empty document",

@@ -136,6 +136,29 @@ const firstListDigest = canonicalDigest(parse('value = [1, 2]'));
 const secondListDigest = canonicalDigest(parse('value = [2, 1]'));
 assert(firstListDigest !== secondListDigest, 'canonical digests should preserve list order');
 
+const attributeAndBlockCanonical = [
+  'enabled = true',
+  'limits {',
+  '  mode = "strict"',
+  '}',
+  '',
+].join('\n');
+const attributeAndBlockBytes = canonicalBytes(parse(`
+enabled = true
+limits {
+  mode = "strict"
+}
+`)).toString('utf8');
+assert(
+  attributeAndBlockBytes === attributeAndBlockCanonical,
+  'canonical bytes should preserve attributes and single-attribute blocks'
+);
+assert(
+  canonicalBytes(parse(attributeAndBlockBytes)).toString('utf8')
+    === attributeAndBlockCanonical,
+  'canonical bytes should be idempotent after reparsing'
+);
+
 const schemaOrderFixture = schemaBlockOrderFixture();
 const orderingSchema = schemaOrderFixture.schema;
 for (const testCase of schemaOrderFixture.equivalentCases) {

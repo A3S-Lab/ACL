@@ -101,6 +101,33 @@ fn canonical_digest_preserves_ordered_list_semantics() {
 }
 
 #[test]
+fn canonical_bytes_preserve_attributes_and_single_attribute_blocks() {
+    let document = parse(
+        r#"
+enabled = true
+limits {
+  mode = "strict"
+}
+"#,
+    )
+    .expect("parse attribute and block");
+    let canonical = canonical_bytes(&document).expect("canonicalize attribute and block");
+
+    assert_eq!(
+        std::str::from_utf8(&canonical).expect("canonical ACL is UTF-8"),
+        "enabled = true\nlimits {\n  mode = \"strict\"\n}\n"
+    );
+
+    let reparsed =
+        parse(std::str::from_utf8(&canonical).expect("canonical ACL is UTF-8")).expect("reparse");
+    assert_eq!(
+        canonical_bytes(&reparsed).expect("canonicalize reparsed document"),
+        canonical,
+        "canonical bytes must be idempotent"
+    );
+}
+
+#[test]
 fn canonical_digest_preserves_unicode_scalar_sequences() {
     let composed = parse("value = \"é\"").expect("parse composed string");
     let decomposed = parse("value = \"e\u{301}\"").expect("parse decomposed string");
