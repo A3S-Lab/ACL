@@ -48,7 +48,7 @@ nested "label" {
 
 ```toml
 [dependencies]
-a3s-acl = "0.2.2"
+a3s-acl = "0.3.0"
 ```
 
 ```rust
