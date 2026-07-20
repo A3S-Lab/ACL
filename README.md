@@ -183,6 +183,9 @@ let output = generate(doc: &Document) -> String
 const output = generate(doc: Document): string
 ```
 
+The generator emits native ACL syntax. Block labels remain in block headers;
+there is no label-as-attribute compatibility output.
+
 ### Canonical bytes and digest
 
 Use the canonical APIs when ACL bytes are signed, stored, or compared across

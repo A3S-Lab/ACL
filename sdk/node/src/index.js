@@ -25,7 +25,7 @@ const {
 } = require('./canonical/canonical.js');
 
 // Generator
-const { generate, generateHCL } = require('./generator/generator.js');
+const { generate } = require('./generator/generator.js');
 
 // Builder
 const {
@@ -55,7 +55,6 @@ module.exports = {
 
   // Generation
   generate,
-  generateHCL,
 
   // Value constructors
   string,
