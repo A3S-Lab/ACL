@@ -7,12 +7,9 @@
  * @property {boolean} [labelsAsAttrs=false] - Output labels as attributes (HCL format) instead of block labels (ACL format)
  */
 
-function needsQuotes(s) {
-  if (s === '') return true;
-  // Only plain ASCII digits (optionally with single decimal point) are safe without quotes
-  // Everything else (including keywords like true/false/null, identifiers like Kimi,
-  // and any string with special chars) must be quoted for HCL compatibility
-  if (/^[0-9]+(?:[.][0-9]+)?$/.test(s)) return false;
+function needsQuotes() {
+  // Every String AST value must stay quoted. Numeric-looking strings would
+  // otherwise be reparsed as Number values.
   return true;
 }
 

@@ -2,6 +2,8 @@
  * ACL SDK Tests
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   DEFAULT_PARSE_LIMITS,
   parse,
@@ -14,8 +16,6 @@ const {
   BlockBuilder,
   DocumentBuilder,
 } = require('./index.js');
-const fs = require('node:fs');
-const path = require('node:path');
 
 // Helper to convert Map to Object for display
 function mapToObj(m) {
@@ -330,5 +330,18 @@ assert(hclGenOutput.includes('providers {'), 'generateHCL should use HCL-style a
 assert(hclGenOutput.includes('name = "openai"'), 'generateHCL should output label as name attr');
 console.log('generate():\n' + genOutput);
 console.log('generateHCL():\n' + hclGenOutput);
+
+console.log('\n=== Test canonical string fixture ===');
+const canonicalStringFixture = fs
+    .readFileSync(path.join(__dirname, '../../../fixtures/canonical/string-values.acl'), 'utf8')
+    .replace(/\r?\n$/, '');
+const canonicalStringDocument = parse(canonicalStringFixture);
+assert(
+    generate(canonicalStringDocument) === canonicalStringFixture,
+    'shared canonical string fixture should round trip byte-for-byte'
+);
+for (const [name, value] of canonicalStringDocument.blocks[0].attributes) {
+    assert(value.kind === 'String', `${name} should remain a string`);
+}
 
 console.log('\n=== All tests passed! ===');
