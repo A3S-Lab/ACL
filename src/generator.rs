@@ -78,8 +78,8 @@ impl Generator {
             self.write_string(label, out);
         }
 
-        if block.blocks.is_empty() && block.attributes.is_empty() && block.labels.is_empty() {
-            out.push('\n');
+        if block.blocks.is_empty() && block.attributes.is_empty() {
+            out.push_str(" { }");
             return;
         }
 

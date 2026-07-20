@@ -1,5 +1,6 @@
 const { createHash } = require('node:crypto');
 const { generate } = require('../generator/generator.js');
+const { normalizeSchema } = require('../schema/definition.js');
 
 const CANONICAL_DIGEST_ALGORITHM = 'sha256';
 
@@ -13,15 +14,86 @@ class CanonicalError extends Error {
 
 function canonicalBytes(document) {
   validateDocument(document);
+  return canonicalBytesFromValidated(document);
+}
+
+function canonicalBytesWithSchema(document, schema) {
+  const normalizedSchema = normalizeSchema(schema, '$schema', new Set());
+  validateDocument(document);
+  return canonicalBytesFromValidated(normalizeDocument(document, normalizedSchema));
+}
+
+function canonicalBytesFromValidated(document) {
   const generated = generate(document).replace(/\n+$/u, '');
   return Buffer.from(`${generated}\n`, 'utf8');
 }
 
 function canonicalDigest(document) {
   const bytes = canonicalBytes(document);
+  return digestBytes(bytes);
+}
+
+function canonicalDigestWithSchema(document, schema) {
+  const bytes = canonicalBytesWithSchema(document, schema);
+  return digestBytes(bytes);
+}
+
+function digestBytes(bytes) {
   return `${CANONICAL_DIGEST_ALGORITHM}:${createHash(CANONICAL_DIGEST_ALGORITHM)
     .update(bytes)
     .digest('hex')}`;
+}
+
+function normalizeDocument(document, schema) {
+  return {
+    blocks: normalizeBlocks(document.blocks, schema, true),
+  };
+}
+
+function normalizeBlocks(blocks, schema, documentRoot) {
+  const normalized = [];
+  const unorderedPositions = new Map();
+
+  for (const [index, block] of blocks.entries()) {
+    const rootAttribute = documentRoot && bareAttribute(block);
+    const rule = rootAttribute ? undefined : schema.blocks.get(block.name);
+    normalized.push(rule ? normalizeBlock(block, rule) : block);
+    if (rule?.unordered) {
+      const positions = unorderedPositions.get(block.name);
+      if (positions) positions.push(index);
+      else unorderedPositions.set(block.name, [index]);
+    }
+  }
+
+  for (const positions of unorderedPositions.values()) {
+    if (positions.length < 2) continue;
+    const matching = positions
+      .map((index) => normalized[index])
+      .map((block) => ({
+        block,
+        key: canonicalBytesFromValidated({ blocks: [block] }),
+      }))
+      .sort((left, right) => Buffer.compare(left.key, right.key))
+      .map(({ block }) => block);
+    for (const [offset, index] of positions.entries()) {
+      normalized[index] = matching[offset];
+    }
+  }
+  return normalized;
+}
+
+function normalizeBlock(block, schema) {
+  return {
+    ...block,
+    blocks: normalizeBlocks(block.blocks, schema.body, false),
+  };
+}
+
+function bareAttribute(block) {
+  return block.labels.length === 0
+    && block.blocks.length === 0
+    && block.attributes.size === 1
+    && block.attributes.has(block.name);
 }
 
 function validateDocument(document) {
@@ -110,5 +182,7 @@ module.exports = {
   CANONICAL_DIGEST_ALGORITHM,
   CanonicalError,
   canonicalBytes,
+  canonicalBytesWithSchema,
   canonicalDigest,
+  canonicalDigestWithSchema,
 };

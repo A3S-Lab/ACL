@@ -15,7 +15,8 @@ pub mod schema;
 
 pub use ast::{Block, Document, Value};
 pub use canonical::{
-    canonical_bytes, canonical_digest, CanonicalError, CANONICAL_DIGEST_ALGORITHM,
+    canonical_bytes, canonical_bytes_with_schema, canonical_digest, canonical_digest_with_schema,
+    CanonicalError, CANONICAL_DIGEST_ALGORITHM,
 };
 pub use diagnostic::{DiagnosticCode, DiagnosticReport, ParseError};
 pub use generator::{generate, generate_from_map, Generator, GeneratorConfig};

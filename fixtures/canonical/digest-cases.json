@@ -19,5 +19,12 @@
     "equivalentInput": "  \n\n",
     "canonical": "\n",
     "digest": "sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "name": "empty block forms",
+    "input": "empty {}\nlabeled \"label\" {}\nouter { child {} }",
+    "equivalentInput": "empty {\n}\nlabeled \"label\" {\n}\nouter {\n  child {\n  }\n}",
+    "canonical": "empty { }\nlabeled \"label\" { }\nouter {\n  child { }\n}\n",
+    "digest": "sha256:41a53c9bcdee103887993f8ca70edbad21b090ebbc24967555c682753b0e4023"
   }
 ]

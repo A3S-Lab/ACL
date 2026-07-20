@@ -1,0 +1,102 @@
+{
+  "schema": {
+    "attributes": {
+      "version": {
+        "required": true,
+        "value": { "kind": "Number" }
+      }
+    },
+    "blocks": {
+      "provider": {
+        "occurrences": { "min": 0, "max": null },
+        "labels": { "min": 1, "max": 1 },
+        "unordered": true,
+        "body": {
+          "attributes": {
+            "enabled": {
+              "required": true,
+              "value": { "kind": "Bool" }
+            }
+          },
+          "blocks": {
+            "model": {
+              "occurrences": { "min": 0, "max": null },
+              "labels": { "min": 1, "max": 1 },
+              "unordered": true,
+              "body": {
+                "attributes": {
+                  "size": {
+                    "required": true,
+                    "value": { "kind": "Number" }
+                  }
+                },
+                "blocks": {},
+                "allowUnknownAttributes": false,
+                "allowUnknownBlocks": false
+              }
+            }
+          },
+          "allowUnknownAttributes": false,
+          "allowUnknownBlocks": false
+        }
+      },
+      "stage": {
+        "occurrences": { "min": 0, "max": null },
+        "labels": { "min": 1, "max": 1 },
+        "body": {
+          "attributes": {
+            "enabled": {
+              "required": true,
+              "value": { "kind": "Bool" }
+            }
+          },
+          "blocks": {},
+          "allowUnknownAttributes": false,
+          "allowUnknownBlocks": false
+        }
+      },
+      "tag": {
+        "occurrences": { "min": 0, "max": null },
+        "labels": { "min": 1, "max": 1 },
+        "unordered": true,
+        "body": {
+          "attributes": {},
+          "blocks": {},
+          "allowUnknownAttributes": false,
+          "allowUnknownBlocks": false
+        }
+      }
+    },
+    "allowUnknownAttributes": false,
+    "allowUnknownBlocks": true
+  },
+  "adversarialCount": 1000,
+  "equivalentCases": [
+    {
+      "name": "unordered provider and nested model occurrences",
+      "input": "version = 1\nprovider \"z\" {\n  enabled = true\n  model \"b\" { size = 2 }\n  model \"a\" { size = 1 }\n}\nstage \"middle\" { enabled = true }\nprovider \"a\" {\n  enabled = false\n  model \"d\" { size = 4 }\n  model \"c\" { size = 3 }\n}",
+      "equivalentInput": "version = 1\nprovider \"a\" {\n  enabled = false\n  model \"c\" { size = 3 }\n  model \"d\" { size = 4 }\n}\nstage \"middle\" { enabled = true }\nprovider \"z\" {\n  enabled = true\n  model \"a\" { size = 1 }\n  model \"b\" { size = 2 }\n}",
+      "canonical": "version {\n  version = 1\n}\nprovider \"a\" {\n  enabled = false\n  model \"c\" {\n    size = 3\n  }\n  model \"d\" {\n    size = 4\n  }\n}\nstage \"middle\" {\n  enabled = true\n}\nprovider \"z\" {\n  enabled = true\n  model \"a\" {\n    size = 1\n  }\n  model \"b\" {\n    size = 2\n  }\n}\n",
+      "digest": "sha256:7595d20fe01b2143d9aa2a8af238a468afdc14ef41693cee7a8def9366809435"
+    },
+    {
+      "name": "unordered empty labeled blocks",
+      "input": "version = 1\ntag \"z\" {}\ntag \"a\" {}",
+      "equivalentInput": "version = 1\ntag \"a\" {\n}\ntag \"z\" {\n}",
+      "canonical": "version {\n  version = 1\n}\ntag \"a\" { }\ntag \"z\" { }\n",
+      "digest": "sha256:2201e6a4432213d89d44e6fe9044ea8907f594217665eb0b5563a427563aacfa"
+    }
+  ],
+  "orderedCases": [
+    {
+      "name": "ordered stage occurrences",
+      "firstInput": "version = 1\nstage \"one\" { enabled = true }\nstage \"two\" { enabled = false }",
+      "secondInput": "version = 1\nstage \"two\" { enabled = false }\nstage \"one\" { enabled = true }"
+    },
+    {
+      "name": "unknown block occurrences",
+      "firstInput": "version = 1\nextension \"one\" { enabled = true }\nextension \"two\" { enabled = false }",
+      "secondInput": "version = 1\nextension \"two\" { enabled = false }\nextension \"one\" { enabled = true }"
+    }
+  ]
+}

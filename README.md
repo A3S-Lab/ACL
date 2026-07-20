@@ -247,10 +247,10 @@ const report = validateDocument(document, schema, limits);
 ```
 
 Schemas are closed by default. They can declare required or optional
-attributes, nested block and label cardinalities, and recursive `Any`,
-`String`, `Number`, `Bool`, `Null`, `List`, `Object`, `Call`, and `OneOf`
-value rules. Unknown attributes, blocks, and object fields require an explicit
-allow flag.
+attributes, nested block and label cardinalities, whether matching block
+occurrences are semantically unordered, and recursive `Any`, `String`,
+`Number`, `Bool`, `Null`, `List`, `Object`, `Call`, and `OneOf` value rules.
+Unknown attributes, blocks, and object fields require an explicit allow flag.
 
 Schema diagnostics use stable `acl.schema.*` codes and logical paths such as
 `$.blocks.provider[0].attributes.api_key`. Messages and paths never include
@@ -304,6 +304,36 @@ by ascending byte value, and duplicate object keys use the last value.
 Document and nested-block order, block-label order, list items, and function
 arguments remain ordered and therefore affect the digest.
 
+After schema admission, use the schema-aware APIs to normalize repeatable block
+types that the trusted schema marks as unordered:
+
+```rust
+use a3s_acl::{canonical_digest_with_schema, BlockSchema, Schema};
+
+let schema = Schema::new().block(
+    "provider",
+    BlockSchema::new(Schema::new()).unordered(true),
+);
+let digest = canonical_digest_with_schema(&document, &schema)?;
+```
+
+```typescript
+import {canonicalDigestWithSchema} from '@a3s-lab/acl';
+
+const schema = {
+  blocks: {
+    provider: {unordered: true},
+  },
+};
+const digest = canonicalDigestWithSchema(document, schema);
+```
+
+Normalization is recursive. For each body, only occurrences of the same
+declared block name whose rule sets `unordered` are sorted by canonical UTF-8
+bytes. Their existing positions are retained, so other block types and unknown
+blocks remain ordered. Schema-aware canonicalization does not perform
+admission; validate the document first.
+
 Finite numbers use the ECMAScript shortest round-tripping representation in
 both SDKs, including `0` for negative zero and stable exponent boundaries.
 Comments and source whitespace are discarded by parsing, while string and
@@ -312,8 +342,9 @@ Programmatic non-finite numbers, non-scalar JavaScript strings, and
 non-portable identifiers fail with redacted `CanonicalError` values. Digests
 are lowercase
 `sha256:<64 hexadecimal characters>` strings over the exact canonical bytes.
-The shared cases under `fixtures/canonical/digest-cases.json` are the
-cross-language compatibility oracle.
+The shared cases under `fixtures/canonical/digest-cases.json` and
+`fixtures/canonical/schema-block-order-cases.json` are the cross-language
+compatibility oracle.
 
 ### Value Constructors
 

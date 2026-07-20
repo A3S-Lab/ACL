@@ -112,6 +112,8 @@ export interface BlockSchema {
   occurrences?: SchemaCardinality;
   labels?: SchemaCardinality;
   body?: Schema;
+  /** Sort matching occurrences during schema-aware canonicalization. */
+  unordered?: boolean;
 }
 
 export interface Schema {
@@ -194,6 +196,8 @@ export function validateDocument(
 export function generate(doc: Document): string;
 export function canonicalBytes(doc: Document): Uint8Array;
 export function canonicalDigest(doc: Document): string;
+export function canonicalBytesWithSchema(doc: Document, schema: Schema): Uint8Array;
+export function canonicalDigestWithSchema(doc: Document, schema: Schema): string;
 
 // Value constructors
 export function string(s: string): Value;
@@ -245,7 +249,9 @@ export default {
   CANONICAL_DIGEST_ALGORITHM,
   CanonicalError,
   canonicalBytes,
+  canonicalBytesWithSchema,
   canonicalDigest,
+  canonicalDigestWithSchema,
   generate,
   string,
   number,

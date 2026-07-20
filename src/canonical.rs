@@ -1,6 +1,8 @@
 use crate::ast::{Block, Document, Value};
 use crate::generator::generate;
+use crate::schema::{BlockSchema, Schema};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// Digest algorithm used by [`canonical_digest`].
@@ -43,21 +45,117 @@ impl std::error::Error for CanonicalError {}
 /// Returns the canonical UTF-8 representation with exactly one final LF.
 pub fn canonical_bytes(document: &Document) -> Result<Vec<u8>, CanonicalError> {
     validate_document(document)?;
+    Ok(canonical_bytes_from_validated(document))
+}
+
+/// Returns canonical UTF-8 after recursively sorting schema-declared
+/// unordered block occurrences.
+///
+/// This function uses the schema only as normalization metadata. Call
+/// [`crate::validate_document`] first when schema admission is required.
+pub fn canonical_bytes_with_schema(
+    document: &Document,
+    schema: &Schema,
+) -> Result<Vec<u8>, CanonicalError> {
+    validate_document(document)?;
+    let normalized = normalize_document(document, schema);
+    Ok(canonical_bytes_from_validated(&normalized))
+}
+
+fn canonical_bytes_from_validated(document: &Document) -> Vec<u8> {
     let mut canonical = generate(document);
     while canonical.ends_with('\n') {
         canonical.pop();
     }
     canonical.push('\n');
-    Ok(canonical.into_bytes())
+    canonical.into_bytes()
 }
 
 /// Returns lowercase `sha256:<hex>` over [`canonical_bytes`].
 pub fn canonical_digest(document: &Document) -> Result<String, CanonicalError> {
     let bytes = canonical_bytes(document)?;
-    Ok(format!(
-        "{CANONICAL_DIGEST_ALGORITHM}:{:x}",
-        Sha256::digest(bytes)
-    ))
+    Ok(digest_bytes(&bytes))
+}
+
+/// Returns lowercase `sha256:<hex>` over
+/// [`canonical_bytes_with_schema`].
+pub fn canonical_digest_with_schema(
+    document: &Document,
+    schema: &Schema,
+) -> Result<String, CanonicalError> {
+    let bytes = canonical_bytes_with_schema(document, schema)?;
+    Ok(digest_bytes(&bytes))
+}
+
+fn digest_bytes(bytes: &[u8]) -> String {
+    format!("{CANONICAL_DIGEST_ALGORITHM}:{:x}", Sha256::digest(bytes))
+}
+
+fn normalize_document(document: &Document, schema: &Schema) -> Document {
+    Document {
+        blocks: normalize_blocks(&document.blocks, schema, true),
+    }
+}
+
+fn normalize_blocks(blocks: &[Block], schema: &Schema, document_root: bool) -> Vec<Block> {
+    let mut normalized = Vec::with_capacity(blocks.len());
+    let mut unordered_positions: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+
+    for (index, block) in blocks.iter().enumerate() {
+        let is_root_attribute = document_root && bare_attribute(block);
+        let rule = if is_root_attribute {
+            None
+        } else {
+            schema.block_rule(&block.name)
+        };
+        normalized.push(match rule {
+            Some(rule) => normalize_block(block, rule),
+            None => block.clone(),
+        });
+        if rule.is_some_and(BlockSchema::is_unordered) {
+            unordered_positions
+                .entry(block.name.clone())
+                .or_default()
+                .push(index);
+        }
+    }
+
+    for positions in unordered_positions.into_values() {
+        if positions.len() < 2 {
+            continue;
+        }
+        let mut matching = positions
+            .iter()
+            .map(|index| normalized[*index].clone())
+            .collect::<Vec<_>>();
+        matching.sort_by_cached_key(canonical_block_key);
+        for (index, block) in positions.into_iter().zip(matching) {
+            normalized[index] = block;
+        }
+    }
+    normalized
+}
+
+fn normalize_block(block: &Block, schema: &BlockSchema) -> Block {
+    Block {
+        name: block.name.clone(),
+        labels: block.labels.clone(),
+        blocks: normalize_blocks(&block.blocks, schema.body_schema(), false),
+        attributes: block.attributes.clone(),
+    }
+}
+
+fn canonical_block_key(block: &Block) -> Vec<u8> {
+    canonical_bytes_from_validated(&Document {
+        blocks: vec![block.clone()],
+    })
+}
+
+fn bare_attribute(block: &Block) -> bool {
+    block.labels.is_empty()
+        && block.blocks.is_empty()
+        && block.attributes.len() == 1
+        && block.attributes.contains_key(&block.name)
 }
 
 fn validate_document(document: &Document) -> Result<(), CanonicalError> {

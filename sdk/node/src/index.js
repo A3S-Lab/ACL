@@ -32,7 +32,9 @@ const {
   CANONICAL_DIGEST_ALGORITHM,
   CanonicalError,
   canonicalBytes,
+  canonicalBytesWithSchema,
   canonicalDigest,
+  canonicalDigestWithSchema,
 } = require('./canonical/canonical.js');
 
 // Generator
@@ -65,7 +67,9 @@ module.exports = {
   CANONICAL_DIGEST_ALGORITHM,
   CanonicalError,
   canonicalBytes,
+  canonicalBytesWithSchema,
   canonicalDigest,
+  canonicalDigestWithSchema,
 
   // Generation
   generate,

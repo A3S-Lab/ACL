@@ -128,6 +128,10 @@ impl Schema {
         self.allow_unknown_blocks = allow;
         self
     }
+
+    pub(crate) fn block_rule(&self, name: &str) -> Option<&BlockSchema> {
+        self.blocks.get(name)
+    }
 }
 
 /// Required or optional attribute value rule.
@@ -161,15 +165,17 @@ pub struct BlockSchema {
     body: Schema,
     occurrences: Cardinality,
     labels: Cardinality,
+    unordered: bool,
 }
 
 impl BlockSchema {
-    /// Construct an optional repeatable block with no labels.
+    /// Construct an optional repeatable, ordered block with no labels.
     pub fn new(body: Schema) -> Self {
         Self {
             body,
             occurrences: Cardinality::at_least(0),
             labels: Cardinality::exactly(0),
+            unordered: false,
         }
     }
 
@@ -183,6 +189,23 @@ impl BlockSchema {
     pub fn labels(mut self, labels: Cardinality) -> Self {
         self.labels = labels;
         self
+    }
+
+    /// Configure whether matching occurrences are semantically unordered.
+    ///
+    /// Schema-aware canonicalization sorts only occurrences of this same
+    /// declared block name. Validation is unaffected.
+    pub fn unordered(mut self, unordered: bool) -> Self {
+        self.unordered = unordered;
+        self
+    }
+
+    pub(crate) fn body_schema(&self) -> &Schema {
+        &self.body
+    }
+
+    pub(crate) fn is_unordered(&self) -> bool {
+        self.unordered
     }
 }
 
