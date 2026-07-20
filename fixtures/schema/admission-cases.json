@@ -1,0 +1,253 @@
+{
+  "schema": {
+    "attributes": {
+      "features": {
+        "required": false,
+        "value": {
+          "kind": "List",
+          "item": { "kind": "String" }
+        }
+      },
+      "metadata": {
+        "required": false,
+        "value": {
+          "kind": "Object",
+          "fields": {
+            "owner": {
+              "required": true,
+              "value": { "kind": "String" }
+            }
+          },
+          "allowUnknownFields": false
+        }
+      },
+      "mode": {
+        "required": false,
+        "value": {
+          "kind": "OneOf",
+          "variants": [
+            { "kind": "String" },
+            { "kind": "Bool" }
+          ]
+        }
+      },
+      "version": {
+        "required": true,
+        "value": { "kind": "Number" }
+      }
+    },
+    "blocks": {
+      "provider": {
+        "occurrences": { "min": 1, "max": 2 },
+        "labels": { "min": 1, "max": 1 },
+        "body": {
+          "attributes": {
+            "api_key": {
+              "required": true,
+              "value": {
+                "kind": "Call",
+                "names": ["env"],
+                "arguments": { "min": 1, "max": 1 },
+                "argument": { "kind": "String" }
+              }
+            },
+            "enabled": {
+              "required": false,
+              "value": { "kind": "Bool" }
+            }
+          },
+          "blocks": {},
+          "allowUnknownAttributes": false,
+          "allowUnknownBlocks": false
+        }
+      }
+    },
+    "allowUnknownAttributes": false,
+    "allowUnknownBlocks": false
+  },
+  "cases": [
+    {
+      "name": "valid document",
+      "input": "version = 1\nmode = true\nfeatures = [\"logs\", \"exec\"]\nmetadata = { owner = \"team\" }\nprovider \"openai\" {\n  api_key = env(\"API_KEY\")\n  enabled = true\n}",
+      "limits": { "maxDiagnostics": 10 },
+      "expected": {
+        "truncated": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "name": "root shape errors",
+      "input": "version = \"TOP_SECRET\"\nextra = \"TOP_SECRET\"",
+      "limits": { "maxDiagnostics": 10 },
+      "expected": {
+        "truncated": false,
+        "diagnostics": [
+          {
+            "code": "acl.schema.unknown_attribute",
+            "message": "Attribute is not allowed by the schema",
+            "path": "$.attributes.extra"
+          },
+          {
+            "code": "acl.schema.value_type",
+            "message": "Expected Number, found String",
+            "path": "$.attributes.version"
+          },
+          {
+            "code": "acl.schema.block_count",
+            "message": "Expected between 1 and 2 blocks, found 0",
+            "path": "$.blocks.provider"
+          }
+        ]
+      }
+    },
+    {
+      "name": "recursive value errors",
+      "input": "version = 1\nfeatures = [\"logs\", 7]\nmetadata = { extra = \"TOP_SECRET\" }\nprovider \"openai\" {\n  api_key = env(\"API_KEY\")\n}",
+      "limits": { "maxDiagnostics": 10 },
+      "expected": {
+        "truncated": false,
+        "diagnostics": [
+          {
+            "code": "acl.schema.value_type",
+            "message": "Expected String, found Number",
+            "path": "$.attributes.features.items[1]"
+          },
+          {
+            "code": "acl.schema.missing_object_field",
+            "message": "Required object field is missing",
+            "path": "$.attributes.metadata.fields.owner"
+          },
+          {
+            "code": "acl.schema.unknown_object_field",
+            "message": "Object field is not allowed by the schema",
+            "path": "$.attributes.metadata.fields.extra"
+          }
+        ]
+      }
+    },
+    {
+      "name": "block and call errors",
+      "input": "version = 1\nprovider {\n  api_key = secret(\"TOP_SECRET\", \"EXTRA\")\n  rogue = \"TOP_SECRET\"\n}\nunknown \"TOP_SECRET\" {}",
+      "limits": { "maxDiagnostics": 10 },
+      "expected": {
+        "truncated": false,
+        "diagnostics": [
+          {
+            "code": "acl.schema.label_count",
+            "message": "Expected exactly 1 label, found 0",
+            "path": "$.blocks.provider[0].labels"
+          },
+          {
+            "code": "acl.schema.call_name",
+            "message": "Call function is not allowed by the schema",
+            "path": "$.blocks.provider[0].attributes.api_key.function"
+          },
+          {
+            "code": "acl.schema.call_argument_count",
+            "message": "Expected exactly 1 argument, found 2",
+            "path": "$.blocks.provider[0].attributes.api_key.arguments"
+          },
+          {
+            "code": "acl.schema.unknown_attribute",
+            "message": "Attribute is not allowed by the schema",
+            "path": "$.blocks.provider[0].attributes.rogue"
+          },
+          {
+            "code": "acl.schema.unknown_block",
+            "message": "Block is not allowed by the schema",
+            "path": "$.blocks.unknown[0]"
+          }
+        ]
+      }
+    },
+    {
+      "name": "block maximum",
+      "input": "version = 1\nprovider \"one\" { api_key = env(\"ONE\") }\nprovider \"two\" { api_key = env(\"TWO\") }\nprovider \"three\" { api_key = env(\"THREE\") }",
+      "limits": { "maxDiagnostics": 10 },
+      "expected": {
+        "truncated": false,
+        "diagnostics": [
+          {
+            "code": "acl.schema.block_count",
+            "message": "Expected between 1 and 2 blocks, found 3",
+            "path": "$.blocks.provider"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing nested attribute",
+      "input": "version = 1\nprovider \"openai\" {}",
+      "limits": { "maxDiagnostics": 10 },
+      "expected": {
+        "truncated": false,
+        "diagnostics": [
+          {
+            "code": "acl.schema.missing_attribute",
+            "message": "Required attribute is missing",
+            "path": "$.blocks.provider[0].attributes.api_key"
+          }
+        ]
+      }
+    },
+    {
+      "name": "duplicate root attribute",
+      "input": "version = 1\nversion = 2\nprovider \"openai\" { api_key = env(\"API_KEY\") }",
+      "limits": { "maxDiagnostics": 10 },
+      "expected": {
+        "truncated": false,
+        "diagnostics": [
+          {
+            "code": "acl.schema.duplicate_attribute",
+            "message": "Attribute appears more than once",
+            "path": "$.attributes.version"
+          }
+        ]
+      }
+    },
+    {
+      "name": "union mismatch",
+      "input": "version = 1\nmode = 7\nprovider \"openai\" { api_key = env(\"API_KEY\") }",
+      "limits": { "maxDiagnostics": 10 },
+      "expected": {
+        "truncated": false,
+        "diagnostics": [
+          {
+            "code": "acl.schema.value_type",
+            "message": "Value does not match any allowed schema variant",
+            "path": "$.attributes.mode"
+          }
+        ]
+      }
+    },
+    {
+      "name": "diagnostic budget truncates",
+      "input": "version = \"TOP_SECRET\"\nextra = \"TOP_SECRET\"",
+      "limits": { "maxDiagnostics": 2 },
+      "expected": {
+        "truncated": true,
+        "diagnostics": [
+          {
+            "code": "acl.schema.unknown_attribute",
+            "message": "Attribute is not allowed by the schema",
+            "path": "$.attributes.extra"
+          },
+          {
+            "code": "acl.schema.value_type",
+            "message": "Expected Number, found String",
+            "path": "$.attributes.version"
+          }
+        ]
+      }
+    },
+    {
+      "name": "zero diagnostic budget",
+      "input": "version = \"TOP_SECRET\"\nextra = \"TOP_SECRET\"",
+      "limits": { "maxDiagnostics": 0 },
+      "expected": {
+        "truncated": true,
+        "diagnostics": []
+      }
+    }
+  ]
+}

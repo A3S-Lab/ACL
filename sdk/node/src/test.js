@@ -10,9 +10,11 @@ const {
   CanonicalError,
   ParseError,
   DEFAULT_PARSE_LIMITS,
+  SCHEMA_DIAGNOSTIC_CODES,
   canonicalBytes,
   canonicalDigest,
   collectDiagnostics,
+  validateDocument,
   parse,
   generate,
   string,
@@ -80,6 +82,15 @@ function multiDiagnosticFixture() {
   return JSON.parse(
     fs.readFileSync(
       path.join(__dirname, '../../../fixtures/diagnostics/multi-cases.json'),
+      'utf8'
+    )
+  );
+}
+
+function schemaAdmissionFixture() {
+  return JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/schema/admission-cases.json'),
       'utf8'
     )
   );
@@ -230,6 +241,183 @@ const exactBudgetReport = collectDiagnostics(
 );
 assert(exactBudgetReport.diagnostics.length === 3, 'exact diagnostic budget should be retained');
 assert(!exactBudgetReport.truncated, 'exact diagnostic budget should not report truncation');
+
+console.log('=== Test Schema Admission ===');
+const schemaFixture = schemaAdmissionFixture();
+assert(
+  SCHEMA_DIAGNOSTIC_CODES.VALUE_TYPE === 'acl.schema.value_type',
+  'schema diagnostic codes should expose stable wire values'
+);
+for (const testCase of schemaFixture.cases) {
+  const report = validateDocument(
+    parse(testCase.input),
+    schemaFixture.schema,
+    testCase.limits
+  );
+  assert(
+    report.truncated === testCase.expected.truncated,
+    `${testCase.name} should have a stable schema truncation flag`
+  );
+  assert(
+    report.diagnostics.length === testCase.expected.diagnostics.length,
+    `${testCase.name} should have a stable schema diagnostic count`
+  );
+  for (const [index, diagnostic] of report.diagnostics.entries()) {
+    const expected = testCase.expected.diagnostics[index];
+    assert(diagnostic.code === expected.code, `${testCase.name} schema diagnostic ${index} should have a stable code`);
+    assert(diagnostic.message === expected.message, `${testCase.name} schema diagnostic ${index} should have a stable message`);
+    assert(diagnostic.path === expected.path, `${testCase.name} schema diagnostic ${index} should have a stable path`);
+    assert(!diagnostic.message.includes('TOP_SECRET'), `${testCase.name} schema diagnostic ${index} should redact values`);
+    assert(!diagnostic.path.includes('TOP_SECRET'), `${testCase.name} schema diagnostic ${index} should redact labels`);
+  }
+}
+
+const exactSchemaBudget = validateDocument(
+  parse('version = "TOP_SECRET"\nextra = "TOP_SECRET"'),
+  schemaFixture.schema,
+  { maxDiagnostics: 3 }
+);
+assert(exactSchemaBudget.diagnostics.length === 3, 'exact schema budget should be retained');
+assert(!exactSchemaBudget.truncated, 'exact schema budget should not report truncation');
+
+const adversarialSchemaReport = validateDocument(
+  parse(Array.from(
+    { length: 1_000 },
+    (_, index) => `unknown_${index} = "TOP_SECRET"`
+  ).join('\n')),
+  schemaFixture.schema,
+  { maxDiagnostics: 3 }
+);
+assert(adversarialSchemaReport.diagnostics.length === 3, 'adversarial schema diagnostics should stay bounded');
+assert(adversarialSchemaReport.truncated, 'adversarial schema diagnostics should report truncation');
+
+const openSchemaReport = validateDocument(
+  parse('extension = "value"\ncustom "label" { nested = true }'),
+  { allowUnknownAttributes: true, allowUnknownBlocks: true }
+);
+assert(openSchemaReport.diagnostics.length === 0, 'open schema flags should accept extension points');
+assert(!openSchemaReport.truncated, 'valid open schema input should not report truncation');
+
+const duplicateObjectReport = validateDocument(
+  {
+    blocks: [{
+      name: 'payload',
+      labels: [],
+      blocks: [],
+      attributes: new Map([[
+        'payload',
+        {
+          kind: 'Object',
+          pairs: [
+            ['owner', { kind: 'String', value: 'first' }],
+            ['owner', { kind: 'String', value: 'TOP_SECRET' }],
+          ],
+        },
+      ]]),
+    }],
+  },
+  {
+    attributes: {
+      payload: {
+        required: true,
+        value: {
+          kind: 'Object',
+          fields: {
+            owner: { required: true, value: { kind: 'String' } },
+          },
+        },
+      },
+    },
+  }
+);
+assert(
+  duplicateObjectReport.diagnostics[0].code === SCHEMA_DIAGNOSTIC_CODES.DUPLICATE_OBJECT_FIELD,
+  'programmatic duplicate object fields should be rejected'
+);
+assert(
+  !duplicateObjectReport.diagnostics[0].message.includes('TOP_SECRET'),
+  'duplicate object diagnostics should redact values'
+);
+
+const cyclicValue = { kind: 'List', items: [] };
+cyclicValue.items.push(cyclicValue);
+try {
+  validateDocument(
+    {
+      blocks: [{
+        name: 'payload',
+        labels: [],
+        blocks: [],
+        attributes: new Map([['payload', cyclicValue]]),
+      }],
+    },
+    { attributes: { payload: { value: { kind: 'Any' } } } }
+  );
+  throw new Error('Expected cyclic document to fail');
+} catch (error) {
+  assert(
+    error instanceof TypeError && error.message.includes('cyclic Document'),
+    'programmatic document cycles should fail before validation'
+  );
+}
+
+try {
+  validateDocument(parse(''), {
+    blocks: {
+      invalid: {
+        occurrences: { min: 2, max: 1 },
+      },
+    },
+  });
+  throw new Error('Expected invalid schema cardinality to fail');
+} catch (error) {
+  assert(
+    error instanceof TypeError && error.message.includes('occurrences'),
+    'invalid schema cardinality should fail before validation'
+  );
+}
+
+try {
+  validateDocument(parse(''), {
+    attributes: {
+      invalid: {
+        value: { kind: 'OneOf', variants: [] },
+      },
+    },
+  });
+  throw new Error('Expected empty schema union to fail');
+} catch (error) {
+  assert(
+    error instanceof TypeError && error.message.includes('variants'),
+    'empty schema unions should fail before validation'
+  );
+}
+
+try {
+  validateDocument(parse(''), { allowUnknownAttribute: true });
+  throw new Error('Expected unknown schema field to fail');
+} catch (error) {
+  assert(
+    error instanceof TypeError && error.message.includes('allowUnknownAttribute'),
+    'unknown schema fields should fail before validation'
+  );
+}
+
+const cyclicValueSchema = { kind: 'List' };
+cyclicValueSchema.item = cyclicValueSchema;
+try {
+  validateDocument(parse(''), {
+    attributes: {
+      invalid: { value: cyclicValueSchema },
+    },
+  });
+  throw new Error('Expected cyclic schema to fail');
+} catch (error) {
+  assert(
+    error instanceof TypeError && error.message.includes('schema cycle'),
+    'schema cycles should fail before validation'
+  );
+}
 
 console.log('=== Test Bounded Parsing ===');
 assert(Object.isFrozen(DEFAULT_PARSE_LIMITS), 'default parse limits should be immutable');

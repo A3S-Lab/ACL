@@ -11,6 +11,7 @@ pub mod generator;
 pub mod lexer;
 mod parse_limits;
 pub mod parser;
+pub mod schema;
 
 pub use ast::{Block, Document, Value};
 pub use canonical::{
@@ -21,6 +22,11 @@ pub use generator::{generate, generate_from_map, Generator, GeneratorConfig};
 pub use lexer::{Lexer, Location, Span, Token, TokenWithSpan};
 pub use parse_limits::{ParseLimits, DEFAULT_PARSE_LIMITS};
 pub use parser::{collect_diagnostics, collect_diagnostics_with_limits, parse, parse_with_limits};
+pub use schema::{
+    validate_document, validate_document_with_limits, AttributeSchema, BlockSchema, CallSchema,
+    Cardinality, ObjectSchema, Schema, SchemaDefinitionError, SchemaDiagnostic,
+    SchemaDiagnosticCode, SchemaReport, ValueSchema,
+};
 
 /// Parse ACL text into a Document
 ///

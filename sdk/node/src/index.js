@@ -21,6 +21,12 @@ const {
   parse,
 } = require('./parser/Parser.js');
 
+// Declarative schema validation
+const {
+  SCHEMA_DIAGNOSTIC_CODES,
+  validateDocument,
+} = require('./schema/schema.js');
+
 // Canonical bytes and digests
 const {
   CANONICAL_DIGEST_ALGORITHM,
@@ -52,6 +58,8 @@ module.exports = {
   DEFAULT_PARSE_LIMITS,
   DIAGNOSTIC_CODES,
   ParseError,
+  validateDocument,
+  SCHEMA_DIAGNOSTIC_CODES,
 
   // Canonical bytes and digests
   CANONICAL_DIGEST_ALGORITHM,

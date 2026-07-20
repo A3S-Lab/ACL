@@ -16,6 +16,8 @@ A lightweight, typed configuration language for agent configurations. ACL is des
   UTF-8 byte offsets, and messages that never echo source token values
 - **Bounded Multi-Diagnostics**: Deterministic line recovery, configurable
   diagnostic budgets, and explicit truncation without changing fail-fast parsing
+- **Schema Admission**: Closed-by-default document shapes, recursive value
+  rules, stable logical paths, and bounded cross-SDK validation reports
 - **Multi-platform SDK**: Rust crate and Node.js/TypeScript SDK
 
 ## Syntax
@@ -206,6 +208,59 @@ diagnostics remain fatal and appear at most once. The collector stores no more
 than `max_diagnostics` / `maxDiagnostics` errors and sets `truncated` only after
 observing an additional error beyond that budget. A zero budget therefore
 returns no diagnostics and sets `truncated` when the input is invalid.
+
+### Schema admission
+
+Parse untrusted input with explicit limits, then validate the resulting
+document before activation:
+
+```rust
+use a3s_acl::{
+    parse_with_limits, validate_document_with_limits, AttributeSchema,
+    ParseLimits, Schema, ValueSchema,
+};
+
+let schema = Schema::new().attribute(
+    "version",
+    AttributeSchema::required(ValueSchema::number()),
+);
+let limits = ParseLimits {
+    max_diagnostics: 20,
+    ..ParseLimits::default()
+};
+let document = parse_with_limits("version = 1", limits)?;
+let report = validate_document_with_limits(&document, &schema, limits);
+assert!(report.is_empty());
+```
+
+```typescript
+import {parse, validateDocument} from '@a3s-lab/acl';
+
+const schema = {
+  attributes: {
+    version: {required: true, value: {kind: 'Number'}},
+  },
+};
+const limits = {maxDiagnostics: 20};
+const document = parse('version = 1', limits);
+const report = validateDocument(document, schema, limits);
+```
+
+Schemas are closed by default. They can declare required or optional
+attributes, nested block and label cardinalities, and recursive `Any`,
+`String`, `Number`, `Bool`, `Null`, `List`, `Object`, `Call`, and `OneOf`
+value rules. Unknown attributes, blocks, and object fields require an explicit
+allow flag.
+
+Schema diagnostics use stable `acl.schema.*` codes and logical paths such as
+`$.blocks.provider[0].attributes.api_key`. Messages and paths never include
+attribute values, call arguments, or block labels. Reports use the same
+diagnostic budget as parsing and set `truncated` only after observing an
+additional schema error beyond that budget.
+
+Schema validation checks document shape, not host-specific semantics such as
+numeric ranges, secret resolution, or provider credentials. Those checks
+remain the responsibility of the admitting component.
 
 ### Generate
 
