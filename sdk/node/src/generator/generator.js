@@ -52,11 +52,12 @@ function generateBlock(block, indent = 0) {
   const spaces = '  '.repeat(indent);
   let result = spaces;
 
-  // Special case: single-value block with no labels and no nested blocks
-  // Output as bare attribute: name = value
+  // The parser represents a document-level attribute as a block whose sole
+  // attribute has the same name. Preserve that assignment shape for every
+  // value kind. A real block with a differently named attribute keeps braces.
   if (block.labels.length === 0 && block.blocks.length === 0 && block.attributes.size === 1) {
     const [key, value] = Array.from(block.attributes.entries())[0];
-    if (value.kind === 'String' && !value.value.includes(' ')) {
+    if (key === block.name) {
       result += block.name + ' = ' + writeValue(value, indent) + '\n';
       return result;
     }
@@ -99,7 +100,14 @@ function generate(doc, options) {
   if (options !== undefined) {
     throw new TypeError('ACL generator options are not supported');
   }
-  return doc.blocks.map(b => generateBlock(b)).join('\n');
+  let output = '';
+  for (const block of doc.blocks) {
+    if (output.length > 0 && !output.endsWith('\n')) {
+      output += '\n';
+    }
+    output += generateBlock(block);
+  }
+  return output;
 }
 
 module.exports = { generate, generateBlock, writeValue, needsQuotes, escapeString };

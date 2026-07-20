@@ -301,6 +301,9 @@ Canonical bytes use the default ACL generator, UTF-8 without a byte-order
 mark, LF line endings, and exactly one final LF. Attribute maps and object
 pairs are semantically unordered: their portable ASCII identifiers are sorted
 by ascending byte value, and duplicate object keys use the last value.
+Document-level attributes remain assignments for every value kind, while an
+unlabeled block with one differently named attribute retains its block braces;
+canonicalization never changes one shape into the other.
 Document and nested-block order, block-label order, list items, and function
 arguments remain ordered and therefore affect the digest.
 
