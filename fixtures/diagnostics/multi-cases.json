@@ -1,0 +1,130 @@
+[
+  {
+    "name": "collect independent syntax errors",
+    "input": "first = ]\nsecond = ]\nthird = ]",
+    "limits": {
+      "maxDiagnostics": 4
+    },
+    "expected": {
+      "truncated": false,
+      "diagnostics": [
+        {
+          "code": "acl.parse.unexpected_token",
+          "message": "Unexpected token in value position: RightBracket",
+          "span": {
+            "start": { "line": 1, "column": 9, "offset": 8 },
+            "end": { "line": 1, "column": 10, "offset": 9 }
+          }
+        },
+        {
+          "code": "acl.parse.unexpected_token",
+          "message": "Unexpected token in value position: RightBracket",
+          "span": {
+            "start": { "line": 2, "column": 10, "offset": 19 },
+            "end": { "line": 2, "column": 11, "offset": 20 }
+          }
+        },
+        {
+          "code": "acl.parse.unexpected_token",
+          "message": "Unexpected token in value position: RightBracket",
+          "span": {
+            "start": { "line": 3, "column": 9, "offset": 29 },
+            "end": { "line": 3, "column": 10, "offset": 30 }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncate at the diagnostic budget",
+    "input": "first = ]\nsecond = ]\nthird = ]",
+    "limits": {
+      "maxDiagnostics": 2
+    },
+    "expected": {
+      "truncated": true,
+      "diagnostics": [
+        {
+          "code": "acl.parse.unexpected_token",
+          "message": "Unexpected token in value position: RightBracket",
+          "span": {
+            "start": { "line": 1, "column": 9, "offset": 8 },
+            "end": { "line": 1, "column": 10, "offset": 9 }
+          }
+        },
+        {
+          "code": "acl.parse.unexpected_token",
+          "message": "Unexpected token in value position: RightBracket",
+          "span": {
+            "start": { "line": 2, "column": 10, "offset": 19 },
+            "end": { "line": 2, "column": 11, "offset": 20 }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "zero diagnostic budget",
+    "input": "secret = ]",
+    "limits": {
+      "maxDiagnostics": 0
+    },
+    "expected": {
+      "truncated": true,
+      "diagnostics": []
+    }
+  },
+  {
+    "name": "valid document",
+    "input": "first = 1\nsecond = 2",
+    "limits": {
+      "maxDiagnostics": 2
+    },
+    "expected": {
+      "truncated": false,
+      "diagnostics": []
+    }
+  },
+  {
+    "name": "preflight limit remains fatal",
+    "input": "secret = \"value\"",
+    "limits": {
+      "maxDocumentBytes": 8,
+      "maxDiagnostics": 2
+    },
+    "expected": {
+      "truncated": false,
+      "diagnostics": [
+        {
+          "code": "acl.limit.document_bytes",
+          "message": "ACL parse limit exceeded: document is larger than 8 bytes",
+          "span": {
+            "start": { "line": 1, "column": 1, "offset": 0 },
+            "end": { "line": 1, "column": 1, "offset": 0 }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "collection limit remains fatal",
+    "input": "first = 1\nsecond = 2\nthird = 3",
+    "limits": {
+      "maxCollectionItems": 1,
+      "maxDiagnostics": 4
+    },
+    "expected": {
+      "truncated": false,
+      "diagnostics": [
+        {
+          "code": "acl.limit.collection_items",
+          "message": "ACL parse limit exceeded: collection has more than 1 items",
+          "span": {
+            "start": { "line": 2, "column": 1, "offset": 10 },
+            "end": { "line": 2, "column": 7, "offset": 16 }
+          }
+        }
+      ]
+    }
+  }
+]

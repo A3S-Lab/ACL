@@ -2,7 +2,7 @@ use crate::diagnostic::DiagnosticCode;
 use crate::lexer::{Token, TokenWithSpan};
 use crate::parser::ParseError;
 
-/// Resource limits applied by [`crate::parse`] and [`crate::parse_with_limits`].
+/// Resource limits applied by parsing and diagnostic collection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseLimits {
     /// Maximum UTF-8 byte length of one ACL document.
@@ -14,6 +14,8 @@ pub struct ParseLimits {
     pub max_collection_items: usize,
     /// Maximum UTF-8 byte length of one source token.
     pub max_token_bytes: usize,
+    /// Maximum number of parse diagnostics returned by one diagnostic collection.
+    pub max_diagnostics: usize,
 }
 
 /// Default resource limits used by [`crate::parse`].
@@ -22,6 +24,7 @@ pub const DEFAULT_PARSE_LIMITS: ParseLimits = ParseLimits {
     max_nesting_depth: 64,
     max_collection_items: 10_000,
     max_token_bytes: 256 * 1024,
+    max_diagnostics: 100,
 };
 
 impl Default for ParseLimits {

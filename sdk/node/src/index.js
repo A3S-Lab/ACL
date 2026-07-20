@@ -14,7 +14,12 @@ const {
 } = require('./diagnostic/ParseError.js');
 
 // Parser
-const { DEFAULT_PARSE_LIMITS, Parser, parse } = require('./parser/Parser.js');
+const {
+  collectDiagnostics,
+  DEFAULT_PARSE_LIMITS,
+  Parser,
+  parse,
+} = require('./parser/Parser.js');
 
 // Canonical bytes and digests
 const {
@@ -43,6 +48,7 @@ const {
 module.exports = {
   // Core parsing
   parse,
+  collectDiagnostics,
   DEFAULT_PARSE_LIMITS,
   DIAGNOSTIC_CODES,
   ParseError,

@@ -3,7 +3,7 @@
 // ============================================================================
 
 use crate::ast::{Block, Document, Value};
-use crate::diagnostic::DiagnosticCode;
+use crate::diagnostic::{DiagnosticCode, DiagnosticReport};
 use crate::lexer::{Lexer, Location, Span, Token, TokenWithSpan};
 use crate::parse_limits::{nesting_limit_error, ParseLimits, DEFAULT_PARSE_LIMITS};
 use std::collections::HashMap;
@@ -124,54 +124,112 @@ impl<'a> Parser<'a> {
         let mut doc = Document::default();
         self.skip_newlines();
 
-        while let Some(t) = self.current() {
-            if matches!(t.token, Token::Eof) {
-                break;
-            }
-
-            let span = t.span;
-            match &t.token {
-                Token::Ident(name) => {
-                    self.ensure_collection_capacity(doc.blocks.len(), span)?;
-                    // Check if this is a bare attribute (name = value) or a block
-                    let name = name.clone();
-                    let is_bare_attr = {
-                        if let Some(next) = self.peek(1) {
-                            matches!(&next.token, Token::Equal | Token::Colon)
-                        } else {
-                            false
-                        }
-                    };
-
-                    if is_bare_attr {
-                        self.advance(); // consume the identifier
-                                        // Parse as a single-attribute block (name = value)
-                        let attr = self.parse_attribute(name.clone())?;
-                        let block = Block {
-                            name,
-                            labels: vec![],
-                            blocks: vec![],
-                            attributes: vec![attr].into_iter().collect(),
-                        };
-                        doc.blocks.push(block);
-                    } else {
-                        // Parse as a block
-                        let block = self.parse_block()?;
-                        doc.blocks.push(block);
-                    }
-                }
-                _ => {
-                    return Err(ParseError::new(
-                        DiagnosticCode::UnexpectedToken,
-                        format!("Unexpected token: {}", t.token.kind_name()),
-                        t.span,
-                    ));
-                }
-            }
+        while !self.is_eof() {
+            self.parse_document_item(&mut doc)?;
             self.skip_newlines();
         }
 
         Ok(doc)
+    }
+
+    /// Collect parse diagnostics in source order with bounded line recovery.
+    pub fn collect_diagnostics(&mut self) -> DiagnosticReport {
+        let mut report = DiagnosticReport::default();
+        if let Some(error) = &self.initial_error {
+            Self::record_diagnostic(&mut report, error.clone(), self.limits.max_diagnostics);
+            return report;
+        }
+
+        let mut doc = Document::default();
+        self.skip_newlines();
+
+        while !self.is_eof() {
+            let item_start = self.pos;
+            match self.parse_document_item(&mut doc) {
+                Ok(()) => self.skip_newlines(),
+                Err(error) => {
+                    let error_line = error.span.start.line;
+                    let is_limit = error.code.is_limit();
+                    if !Self::record_diagnostic(&mut report, error, self.limits.max_diagnostics) {
+                        break;
+                    }
+                    if is_limit {
+                        break;
+                    }
+                    self.recover_after_error(item_start, error_line);
+                }
+            }
+        }
+
+        report
+    }
+
+    fn is_eof(&self) -> bool {
+        self.current()
+            .map(|token| matches!(token.token, Token::Eof))
+            .unwrap_or(true)
+    }
+
+    fn parse_document_item(&mut self, doc: &mut Document) -> Result<(), ParseError> {
+        let token = self.current().cloned().unwrap_or_else(|| {
+            TokenWithSpan::new(Token::Eof, self.eof_span().start, self.eof_span().end)
+        });
+        let span = token.span;
+        match token.token {
+            Token::Ident(name) => {
+                self.ensure_collection_capacity(doc.blocks.len(), span)?;
+                let is_bare_attr = self
+                    .peek(1)
+                    .map(|next| matches!(next.token, Token::Equal | Token::Colon))
+                    .unwrap_or(false);
+
+                if is_bare_attr {
+                    self.advance();
+                    let attr = self.parse_attribute(name.clone())?;
+                    doc.blocks.push(Block {
+                        name,
+                        labels: vec![],
+                        blocks: vec![],
+                        attributes: vec![attr].into_iter().collect(),
+                    });
+                } else {
+                    doc.blocks.push(self.parse_block()?);
+                }
+                Ok(())
+            }
+            _ => Err(ParseError::new(
+                DiagnosticCode::UnexpectedToken,
+                format!("Unexpected token: {}", token.token.kind_name()),
+                span,
+            )),
+        }
+    }
+
+    fn record_diagnostic(
+        report: &mut DiagnosticReport,
+        error: ParseError,
+        max_diagnostics: usize,
+    ) -> bool {
+        if report.diagnostics.len() >= max_diagnostics {
+            report.truncated = true;
+            return false;
+        }
+        report.diagnostics.push(error);
+        true
+    }
+
+    fn recover_after_error(&mut self, item_start: usize, error_line: usize) {
+        if self.pos == item_start && !self.is_eof() {
+            self.advance();
+        }
+        while let Some(token) = self.current() {
+            if matches!(token.token, Token::Eof) || token.span.start.line > error_line {
+                break;
+            }
+            self.advance();
+        }
+        self.block_depth = 0;
+        self.skip_newlines();
     }
 
     fn ensure_collection_capacity(&self, current_len: usize, span: Span) -> Result<(), ParseError> {
@@ -633,6 +691,16 @@ pub fn parse(input: &str) -> Result<Document, ParseError> {
 /// Parse ACL text into a Document with explicit resource limits.
 pub fn parse_with_limits(input: &str, limits: ParseLimits) -> Result<Document, ParseError> {
     Parser::with_limits(input, limits).parse()
+}
+
+/// Collect bounded parse diagnostics using the default resource limits.
+pub fn collect_diagnostics(input: &str) -> DiagnosticReport {
+    collect_diagnostics_with_limits(input, DEFAULT_PARSE_LIMITS)
+}
+
+/// Collect bounded parse diagnostics using explicit resource limits.
+pub fn collect_diagnostics_with_limits(input: &str, limits: ParseLimits) -> DiagnosticReport {
+    Parser::with_limits(input, limits).collect_diagnostics()
 }
 
 #[cfg(test)]

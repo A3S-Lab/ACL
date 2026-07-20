@@ -25,6 +25,17 @@ impl DiagnosticCode {
             Self::UnexpectedEof => "acl.parse.unexpected_eof",
         }
     }
+
+    /// Return true for resource-limit diagnostics that stop parsing immediately.
+    pub const fn is_limit(self) -> bool {
+        matches!(
+            self,
+            Self::DocumentBytesLimit
+                | Self::TokenBytesLimit
+                | Self::NestingDepthLimit
+                | Self::CollectionItemsLimit
+        )
+    }
 }
 
 impl std::fmt::Display for DiagnosticCode {
@@ -43,6 +54,22 @@ pub struct ParseError {
     pub line: usize,
     /// Compatibility alias for `span.start.column`.
     pub column: usize,
+}
+
+/// Bounded collection of ACL parse diagnostics.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DiagnosticReport {
+    /// Diagnostics in deterministic source order.
+    pub diagnostics: Vec<ParseError>,
+    /// Whether at least one additional diagnostic was observed after the configured budget.
+    pub truncated: bool,
+}
+
+impl DiagnosticReport {
+    /// Return true when no diagnostic was collected and the report was not truncated.
+    pub fn is_empty(&self) -> bool {
+        self.diagnostics.is_empty() && !self.truncated
+    }
 }
 
 impl ParseError {
