@@ -1,5 +1,11 @@
 # ACL - Agent Configuration Language
 
+<p align="center">
+  <strong>Language / 语言:</strong>
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
+
 A lightweight, typed configuration language for agent configurations. ACL is designed for defining structured agent behaviors with blocks, attributes, and function calls.
 
 ## Features
