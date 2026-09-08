@@ -1,12 +1,12 @@
 # ACL - Agent Configuration Language（Agent 配置语言）
 
 <p align="center">
-  <strong>Language / 语言:</strong>
+  <strong>语言 / Language:</strong>
   <a href="README.md">English</a> ·
   <a href="README.zh-CN.md">中文</a>
 </p>
 
-用于代理配置的轻量级类型配置语言。 ACL 旨在通过块、属性和函数调用定义结构化代理行为。
+用于 Agent 配置的轻量级类型配置语言。 ACL 旨在通过块、属性和函数调用定义结构化 Agent 行为。
 
 ## 功能
 
@@ -14,15 +14,15 @@
 - **类型化值**：字符串、数字、布尔值、列表、对象、null 和函数调用
 - **函数调用**：内置支持 `env()`、`concat()` 和自定义函数
 - **双向**：将 ACL 文本解析为 AST，将 AST 生成回文本
-- **类型稳定的字符串**：规范生成引用空，数字外观，
+- **类型稳定的字符串**：规范生成会对空字符串、看起来像数字的、
   类似关键字和 Unicode 字符串，因此解析无法更改它们的值类型
 - **稳定的规范摘要**：Rust 和 Node.js 公开字节相同
   规范的 UTF-8 加小写、算法前缀的 SHA-256 摘要
 - **结构化诊断**：稳定的跨 SDK 代码、完整的源代码跨度、
-  UTF-8 字节偏移量和从不回显源标记值的消息
-- **有界多重诊断**：确定性线路恢复，可配置
-  诊断预算和显式截断而不改变快速失败解析
-- **模式准入**：默认关闭的文档形状，递归值
+  UTF-8 字节偏移量和从不回显源 token 值的消息
+- **有界多重诊断**：确定性按行恢复，可配置
+  诊断预算和显式截断而不改变fail-fast解析
+- **Schema 准入**：默认封闭的文档形态，递归值
   规则、稳定的逻辑路径和有界的跨SDK验证报告
 - **多平台 SDK**：Rust crate 和 Node.js/TypeScript SDK
 
@@ -186,7 +186,7 @@ try {
 片段。调用者应保留该边界并且不得附加
 将不受信任的 ACL 文档记录到 API 错误或日志。
 
-"parse" API 仍然是快速失败的。 CLI 和编辑器集成可以收集
+"parse" API 仍然是fail-fast的。 CLI 和编辑器集成可以收集
 未构建部分 AST 时出现多个错误：
 
 ```rust
@@ -366,7 +366,7 @@ const digest = canonicalDigestWithSchema(document, schema);
 |列表 | `列表（vec！[...]）` | `列表（[...]）` |
 |函数调用| `call("env", vec![...])` | `call("env", [...])` |
 
-### 建设者
+### 构建器
 
 ```rust
 let block = BlockBuilder::new("config")
