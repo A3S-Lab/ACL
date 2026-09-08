@@ -108,6 +108,47 @@ jobs:
           set -euo pipefail
           NAME="$(node -p "require('./package.json').name")"
           VERSION="$(node -p "require('./package.json').version")"
+
+          redact() {
+            sed -E \
+              -e 's/npm_[A-Za-z0-9]+/[redacted]/g' \
+              -e 's/(token[=:][[:space:]]*)[^[:space:]]+/\1[redacted]/gi' \
+              -e 's/(authorization[=:][[:space:]]*Bearer[[:space:]]+)[^[:space:]]+/\1[redacted]/gi'
+          }
+
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NODE_AUTH_TOKEN is unset. Configure repository secret NPM_TOKEN with publish rights for ${NAME} (or enable npm trusted publishing for this workflow)."
+            exit 1
+          fi
+
+          set +e
+          WHOAMI_OUTPUT="$(npm whoami --registry https://registry.npmjs.org 2>&1)"
+          WHOAMI_STATUS=$?
+          set -e
+          if [ "$WHOAMI_STATUS" -ne 0 ]; then
+            echo "::error::npm authentication failed before publishing ${NAME}@${VERSION}. Verify NPM_TOKEN is valid and can access the @a3s-lab scope."
+            printf '%s\n' "$WHOAMI_OUTPUT" | redact
+            exit "$WHOAMI_STATUS"
+          fi
+          echo "Authenticated to npm as: ${WHOAMI_OUTPUT}"
+
+          set +e
+          ACCESS_OUTPUT="$(npm access list packages 2>&1)"
+          ACCESS_STATUS=$?
+          set -e
+          if [ "$ACCESS_STATUS" -ne 0 ]; then
+            echo "::error::Unable to list npm packages for the authenticated identity. The token may lack org/package authorization for ${NAME}."
+            printf '%s\n' "$ACCESS_OUTPUT" | redact
+            exit "$ACCESS_STATUS"
+          fi
+          if ! printf '%s\n' "$ACCESS_OUTPUT" | grep -F "$NAME" >/dev/null 2>&1; then
+            echo "::error::Authenticated npm identity cannot see ${NAME}. Grant publish access on the @a3s-lab scope/package, or create the package with an owner token before retrying."
+            echo "Visible packages (redacted listing):"
+            printf '%s\n' "$ACCESS_OUTPUT" | redact | head -50
+            exit 1
+          fi
+          echo "Preflight confirmed package visibility for ${NAME}."
+
           if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
             echo "${NAME}@${VERSION} already exists on npm, skipping."
             exit 0
@@ -117,12 +158,15 @@ jobs:
           OUTPUT="$(npm publish --access public 2>&1)"
           STATUS=$?
           set -e
-          echo "$OUTPUT"
+          printf '%s\n' "$OUTPUT" | redact
 
           if [ "$STATUS" -ne 0 ]; then
             if echo "$OUTPUT" | grep -Eqi "previously published|cannot publish over|already exists"; then
               echo "${NAME}@${VERSION} was already published, treating as success."
               exit 0
+            fi
+            if echo "$OUTPUT" | grep -Eqi "E404|not authorized|need auth|403|ENEEDAUTH"; then
+              echo "::error::npm rejected publish of ${NAME}@${VERSION}. This is usually missing @a3s-lab scope/package publish authorization rather than a package build failure."
             fi
             exit "$STATUS"
           fi
